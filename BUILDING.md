@@ -6,4 +6,5 @@ git clone git@github.com:CesiumGS/cesium-native.git --recurse-submodules
 cd cesium-native
 mkdir build
 cd build 
-cmake -DCMAKE_OSX_ARCHITECTURES=arm64 ..
+cmake -DCMAKE_OSX_ARCHITECTURES=arm64 -DCESIUM_TESTS_ENABLED=OFF ..
+cmake --build . # --config Debug
