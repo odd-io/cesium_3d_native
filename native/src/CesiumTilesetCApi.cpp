@@ -1,4 +1,4 @@
-#include "cesium_tileset.h"
+#include "CesiumTilesetCApi.h"
 #include <Cesium3DTilesSelection/Tileset.h>
 #include <Cesium3DTilesSelection/TilesetExternals.h>
 #include <CesiumAsync/IAssetAccessor.h>
@@ -7,6 +7,9 @@
 #include <vector>
 #include "CurlAssetAccessor.hpp"
 #include "PrepareRenderer.hpp"
+#include <Cesium3DTilesContent/registerAllTileContentTypes.h>
+
+extern "C" {
 
 using namespace Cesium3DTilesSelection;
 
@@ -19,6 +22,10 @@ struct CesiumTileset {
     std::unique_ptr<Cesium3DTilesSelection::Tileset> tileset;
     Cesium3DTilesSelection::ViewUpdateResult lastUpdateResult;
 };
+
+void CesiumTileset_initialize() {
+    Cesium3DTilesContent::registerAllTileContentTypes();
+}
 
 CesiumTileset* CesiumTileset_create(const char* url) {
     auto pAssetAccessor = std::dynamic_pointer_cast<CesiumAsync::IAssetAccessor>(std::make_shared<CurlAssetAccessor>());
@@ -82,7 +89,7 @@ int CesiumTileset_updateView(CesiumTileset* tileset, const CesiumViewState* view
         CesiumGeospatial::Ellipsoid::WGS84
     );
 
-    tileset->lastUpdateResult = tileset->tileset->updateView({cesiumViewState});
+    tileset->lastUpdateResult = tileset->tileset->updateView({cesiumViewState}, 1.0f);
     return static_cast<int>(tileset->lastUpdateResult.tilesToRenderThisFrame.size());
 }
 
@@ -91,12 +98,49 @@ int CesiumTileset_getTileCount(const CesiumTileset* tileset) {
     return static_cast<int>(tileset->lastUpdateResult.tilesToRenderThisFrame.size());
 }
 
-void CesiumTileset_getTileRenderData(const CesiumTileset* tileset, int index, void** renderData) {
+CesiumTileContentType CesiumTileset_getTileContentType(const CesiumTileset* tileset, int index) {
+    auto tile = tileset->lastUpdateResult.tilesToRenderThisFrame[index];
+    auto state = tile->getState();
+
+    auto& content = tile->getContent();
+    
+    if(content.isEmptyContent()) { 
+        return CT_TC_EMPTY;
+    } else if(content.isExternalContent()) {
+        return CT_TC_EXTERNAL;
+    } else if(content.isRenderContent()) {
+        return CT_TC_RENDER;
+    } else if(content.isUnknownContent()) {
+        return CT_TC_UNKNOWN;
+    } else {
+        return CT_TC_ERROR;
+    }
+}
+
+CesiumTileLoadState CesiumTileset_getTileLoadState(const CesiumTileset* tileset, int index) {
+    auto tile = tileset->lastUpdateResult.tilesToRenderThisFrame[index];
+    auto state = tile->getState();
+    return (CesiumTileLoadState)state;
+}
+
+void CesiumTileset_getTileData(const CesiumTileset* tileset, int index, void** data) {
     if (!tileset || index < 0 || index >= tileset->lastUpdateResult.tilesToRenderThisFrame.size()) {
-        *renderData = nullptr;
+        *data = nullptr;
         return;
     }
 
     auto tile = tileset->lastUpdateResult.tilesToRenderThisFrame[index];
-    *renderData = tile->getContent().getRenderContent()->getRenderResources();
+    
+    auto& content = tile->getContent();
+    
+    if(content.isRenderContent()) {
+        auto renderContent = content.getRenderContent();
+        auto model = renderContent->getModel();
+        *data = renderContent;
+    } else if(content.isExternalContent()) { 
+        *data = content.getExternalContent();
+    } else {
+        *data = nullptr;
+    }   
+}   
 }
