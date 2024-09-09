@@ -1,4 +1,3 @@
-#include "cesium_tileset.h"
 #include <Cesium3DTilesSelection/Tileset.h>
 #include <Cesium3DTilesSelection/TilesetExternals.h>
 #include <CesiumAsync/IAssetAccessor.h>
@@ -9,6 +8,7 @@
 #include <curl/curl.h>
 #include <iostream>
 #include <sstream>
+#include <zlib.h>
 
 using namespace Cesium3DTilesSelection;
 
@@ -82,7 +82,7 @@ public:
         const std::string& url,
         const std::vector<THeader>& headers,
         const gsl::span<const std::byte>& contentPayload = {}) override {
-        
+       
         return asyncSystem.runInWorkerThread([this, verb, url, headers, contentPayload]() {
             auto request = std::make_shared<CurlAssetRequest>(verb, url, CesiumAsync::HttpHeaders(headers.begin(), headers.end()));
             
@@ -91,17 +91,22 @@ public:
                 throw std::runtime_error("Failed to initialize CURL");
             }
 
+            // curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+            curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+            curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
             curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
             curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, verb.c_str());
+            curl_easy_setopt(curl, CURLOPT_ACCEPT_ENCODING, "");
 
-            // Set headers
             struct curl_slist* chunk = nullptr;
             for (const auto& header : headers) {
                 std::string headerStr = header.first + ": " + header.second;
                 chunk = curl_slist_append(chunk, headerStr.c_str());
             }
 
-            // Add Authorization header if token is set
+            // Add Accept-Encoding header for compressed responses
+            chunk = curl_slist_append(chunk, "Accept-Encoding: gzip, deflate");
+
             if (!_authToken.empty()) {
                 std::string authHeader = "Authorization: Bearer " + _authToken;
                 chunk = curl_slist_append(chunk, authHeader.c_str());
@@ -109,7 +114,6 @@ public:
 
             curl_easy_setopt(curl, CURLOPT_HTTPHEADER, chunk);
 
-            // Set content payload if any
             if (!contentPayload.empty()) {
                 curl_easy_setopt(curl, CURLOPT_POSTFIELDS, contentPayload.data());
                 curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, contentPayload.size());
@@ -118,7 +122,7 @@ public:
             std::vector<uint8_t> responseData;
             curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
             curl_easy_setopt(curl, CURLOPT_WRITEDATA, &responseData);
-
+            
             CURLcode res = curl_easy_perform(curl);
 
             if (res != CURLE_OK) {
