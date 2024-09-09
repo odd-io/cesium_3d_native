@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:cesium_3d_native/src/ion/CesiumIonAsset.dart';
+import 'package:cesium_3d_native/src/ion/CesiumIonAssetEndpoint.dart';
 import 'package:http/http.dart' as http;
 
 class CesiumIonClient {
@@ -37,6 +38,21 @@ class CesiumIonClient {
     }
   }
 
+  Future<CesiumIonAssetEndpoint> getEndpoint(CesiumIonAsset asset) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/assets/${asset.id}/endpoint'),
+      headers: {'Authorization': 'Bearer $accessToken'},
+    );
+
+    if (response.statusCode == 200) {
+      final jsonResponse = jsonDecode(response.body);
+      print(jsonResponse);
+      return CesiumIonAssetEndpoint.fromJson(jsonResponse);
+    } else {
+      throw Exception('Failed to fetch asset: ${response.statusCode}');
+    }
+  }
+
   Future<CesiumIonAsset> createAsset(Map<String, dynamic> assetData) async {
     final response = await http.post(
       Uri.parse('$baseUrl/assets'),
@@ -48,7 +64,8 @@ class CesiumIonClient {
     );
 
     if (response.statusCode == 200) {
-      return CesiumIonAsset.fromJson(json.decode(response.body)['assetMetadata']);
+      return CesiumIonAsset.fromJson(
+          json.decode(response.body)['assetMetadata']);
     } else {
       throw Exception('Failed to create asset: ${response.statusCode}');
     }
@@ -64,11 +81,13 @@ class CesiumIonClient {
       } else if (asset.status == 'DATA_ERROR') {
         throw Exception('ion detected a problem with the uploaded data.');
       } else if (asset.status == 'ERROR') {
-        throw Exception('An unknown tiling error occurred, please contact support@cesium.com.');
+        throw Exception(
+            'An unknown tiling error occurred, please contact support@cesium.com.');
       } else {
         if (asset.status == 'NOT_STARTED') {
           print('Tiling pipeline initializing.');
-        } else { // IN_PROGRESS
+        } else {
+          // IN_PROGRESS
           print('Asset is ${asset.percentComplete}% complete.');
         }
         await Future.delayed(Duration(seconds: 10));
