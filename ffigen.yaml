@@ -1,0 +1,8 @@
+output: 'lib/src/cesium_3d_native.g.dart'
+headers:
+  entry-points:
+    - 'native/include/CesiumTilesetCApi.h'
+  include-directives:
+    - 'native/include/CesiumTilesetCApi.h'
+ffi-native:
+  assetId: package:cesium_3d_native/cesium_3d_native.dart
