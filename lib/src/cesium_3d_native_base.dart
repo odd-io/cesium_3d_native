@@ -9,22 +9,25 @@ typedef CesiumTileset = Pointer<g.CesiumTileset>;
 typedef CesiumTile = Pointer<g.CesiumTile>;
 
 class Cesium3D {
-  static bool _initialized = false;
   static late Pointer<Char> _errorMessage;
 
-  static void _checkInitialized() {
-    if (!_initialized) {
-      g.CesiumTileset_initialize();
-      _errorMessage = calloc<Char>(256);
-      _initialized = true;
-    }
+  static Cesium3D? _instance;
+  static Cesium3D get instance {
+    _instance ??= Cesium3D._();
+    return _instance!;
+  }
+
+
+  Cesium3D._() {
+    g.CesiumTileset_initialize();
+    _errorMessage = calloc<Char>(256);
   }
 
   ///
   /// Load a CesiumTileset from a CesiumIonAsset with the specified token.
   ///
-  static CesiumTileset loadFromCesiumIon(int assetId, String accessToken) {
-    _checkInitialized();
+  CesiumTileset loadFromCesiumIon(int assetId, String accessToken) {
+    
     final ptr = accessToken.toNativeUtf8(allocator: calloc);
     final tileset =
         g.CesiumTileset_createFromIonAsset(assetId, ptr.cast<Char>());
@@ -38,8 +41,8 @@ class Cesium3D {
   ///
   /// Load a CesiumTileset from a url.
   ///
-  static CesiumTileset loadFromUrl(String url) {
-    _checkInitialized();
+  CesiumTileset loadFromUrl(String url) {
+    
     final ptr = url.toNativeUtf8(allocator: calloc);
     final tileset = g.CesiumTileset_create(ptr.cast<Char>());
     calloc.free(ptr);
@@ -49,7 +52,7 @@ class Cesium3D {
     return tileset;
   }
 
-  static g.CesiumViewState _toStruct(CesiumView view) {
+  g.CesiumViewState _toStruct(CesiumView view) {
     return g.CesiumTileset_createViewState(
         view.position.x,
         view.position.y,
@@ -68,7 +71,7 @@ class Cesium3D {
   ///
   /// Update the tileset with the current view. Returns the number of tiles to render.
   ///
-  static int updateTilesetView(CesiumTileset tileset, CesiumView view) {
+  int updateTilesetView(CesiumTileset tileset, CesiumView view) {
     int numTiles = g.CesiumTileset_updateView(tileset, _toStruct(view));
     return numTiles;
   }
@@ -80,7 +83,7 @@ class Cesium3D {
   ///
   /// TODO - how to check successful load?
   ///
-  static void checkLoadError(CesiumTileset tileset) {
+  void checkLoadError(CesiumTileset tileset) {
     if (g.CesiumTileset_hasLoadError(tileset) == 1) {
       g.CesiumTileset_getErrorMessage(tileset, _errorMessage);
       throw Exception(_errorMessage.cast<Utf8>().toDartString());
@@ -90,8 +93,8 @@ class Cesium3D {
   ///
   /// Fetches the root CesiumTile for the tileset.
   ///
-  static CesiumTile getRootTile(CesiumTileset tileset) {
-    _checkInitialized();
+  CesiumTile getRootTile(CesiumTileset tileset) {
+    
     final root = g.CesiumTileset_getRootTile(tileset);
     if (root == nullptr) {
       throw Exception("No root tile");
@@ -102,16 +105,22 @@ class Cesium3D {
   ///
   /// Gets the renderable content for the tileset.
   ///
-  static CesiumTile getRenderContent(CesiumTileset tileset) {
-    _checkInitialized();
-    return g.CesiumTileset_getRootTile(tileset);
+  CesiumTile getRenderContent(CesiumTileset tileset) {
+    throw Exception("TODO");
+  }
+
+  // Gets the CesiumTile to render at this frame at the given index.
+  // [index] must be less than the result of the last [updateTilesetView]
+  // (and will only be valid until the next call to [updateTilesetView]).
+  CesiumTile getTileToRenderThisFrame(CesiumTileset tileset, int index) {
+    throw Exception("TODO");
   }
 
   ///
   /// Gets the load state for a given tile.
   ///
-  static int getLoadState(CesiumTile tile) {
-    _checkInitialized();
+  int getLoadState(CesiumTile tile) {
+    
     return g.CesiumTileset_getTileLoadState(tile);
   }
 }
