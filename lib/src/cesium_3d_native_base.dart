@@ -62,15 +62,15 @@ class Cesium3D {
         view.up.z,
         view.viewportWidth,
         view.viewportHeight,
-        view.horizontalFov,
-        view.verticalFov);
+        view.horizontalFov);
   }
 
   ///
-  /// Load a CesiumTileset from a CesiumIonAsset with the specified token.
+  /// Update the tileset with the current view. Returns the number of tiles to render.
   ///
-  static void updateTilesetView(CesiumTileset tileset, CesiumView view) {
+  static int updateTilesetView(CesiumTileset tileset, CesiumView view) {
     int numTiles = g.CesiumTileset_updateView(tileset, _toStruct(view));
+    return numTiles;
   }
 
   ///
