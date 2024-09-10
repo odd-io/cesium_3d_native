@@ -9,6 +9,11 @@
 #include "PrepareRenderer.hpp"
 #include <Cesium3DTilesContent/registerAllTileContentTypes.h>
 
+#include <spdlog/spdlog.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
+#include <spdlog/async.h>
+#include <spdlog/sinks/basic_file_sink.h>
+
 extern "C" {
 
 using namespace Cesium3DTilesSelection;
@@ -21,10 +26,23 @@ public:
 struct CesiumTileset {
     std::unique_ptr<Cesium3DTilesSelection::Tileset> tileset;
     Cesium3DTilesSelection::ViewUpdateResult lastUpdateResult;
+    bool loadError = false;
+    std::string loadErrorMessage;
 };
 
 void CesiumTileset_initialize() {
     Cesium3DTilesContent::registerAllTileContentTypes();
+
+    auto console = spdlog::stdout_color_mt("cesium_logger");
+    spdlog::set_default_logger(console);
+
+    // Set the log level (optional)
+    spdlog::set_level(spdlog::level::info); // Or info, warn, error, etc.
+
+    // Enable backtrace logging (optional)
+    spdlog::enable_backtrace(32); // Keep a backtrace of 32 messages
+
+    spdlog::default_logger()->info("Initialized");
 }
 
 CesiumTileset* CesiumTileset_create(const char* url) {
@@ -64,66 +82,112 @@ CesiumTileset* CesiumTileset_createFromIonAsset(int64_t assetId, const char* acc
     externals.pAssetAccessor = pAssetAccessor;
     externals.pPrepareRendererResources = pResourcePreparer;
 
+    TilesetOptions options;
+
+    
     auto pTileset = new CesiumTileset();
+    options.loadErrorCallback = [=](const TilesetLoadFailureDetails& details) {
+        pTileset->loadErrorMessage = details.message;
+        spdlog::default_logger()->error(details.message);
+        pTileset->loadError = true;
+    };
     pTileset->tileset = std::make_unique<Cesium3DTilesSelection::Tileset>(
         externals,
         assetId,
-        accessToken
+        accessToken,
+        options
     );
+ 
     return pTileset;
+}
+
+void CesiumTileset_getErrorMessage(CesiumTileset* tileset, char* out) {
+    auto message = tileset->loadErrorMessage;
+    spdlog::default_logger()->error(tileset->loadErrorMessage);
+    spdlog::default_logger()->error("{}", (int64_t)message.c_str());
+    
+    if(message.length() == 0) {
+        memset(out, 0, 255);
+    } else {
+        int length = message.length();
+        if(length > 255) {
+            length = 255;
+        }
+        strncpy(out, message.c_str(), length);
+    }
 }
 
 void CesiumTileset_destroy(CesiumTileset* tileset) {
     delete tileset;
 }
 
-int CesiumTileset_updateView(CesiumTileset* tileset, const CesiumViewState* viewState) {
-    if (!tileset || !viewState) return 0;
-    Cesium3DTilesSelection::ViewState cesiumViewState = Cesium3DTilesSelection::ViewState::create(
-        glm::dvec3(viewState->position[0], viewState->position[1], viewState->position[2]),
-        glm::dvec3(viewState->direction[0], viewState->direction[1], viewState->direction[2]),
-        glm::dvec3(viewState->up[0], viewState->up[1], viewState->up[2]),
-        glm::dvec2(viewState->viewportWidth, viewState->viewportHeight),
-        viewState->horizontalFov,
-        viewState->horizontalFov * viewState->viewportHeight / viewState->viewportWidth,
-        CesiumGeospatial::Ellipsoid::WGS84
-    );
-
-    tileset->lastUpdateResult = tileset->tileset->updateView({cesiumViewState}, 1.0f);
-    return static_cast<int>(tileset->lastUpdateResult.tilesToRenderThisFrame.size());
+CesiumViewState CesiumTileset_createViewState(double positionX, double positionY, double positionZ, double directionX, double directionY, double directionZ, double upX, double upY, double upZ,
+double viewportWidth, double viewportHeight, double horizontalFov) { 
+    return CesiumViewState { 
+        { positionX, positionY, positionZ },
+        { directionX, directionY, directionZ },
+        { upX, upY, upZ },
+        viewportWidth,
+        viewportHeight,
+        horizontalFov
+    };
 }
 
-int CesiumTileset_getTileCount(const CesiumTileset* tileset) {
+
+
+int CesiumTileset_updateView(CesiumTileset* tileset, const CesiumViewState viewState) {
+    if (!tileset) return -1;
+    Cesium3DTilesSelection::ViewState cesiumViewState = Cesium3DTilesSelection::ViewState::create(
+        glm::dvec3(viewState.position[0], viewState.position[1], viewState.position[2]),
+        glm::dvec3(viewState.direction[0], viewState.direction[1], viewState.direction[2]),
+        glm::dvec3(viewState.up[0], viewState.up[1], viewState.up[2]),
+        glm::dvec2(viewState.viewportWidth, viewState.viewportHeight),
+        viewState.horizontalFov,
+        viewState.horizontalFov * viewState.viewportHeight / viewState.viewportWidth
+    );
+
+    tileset->lastUpdateResult = tileset->tileset->updateView({cesiumViewState});
+
+    int tilesToRender = static_cast<int>(tileset->lastUpdateResult.tilesToRenderThisFrame.size());
+
+    spdlog::default_logger()->info("Tiles to render: {}", tilesToRender);
+    return tilesToRender;
+}
+
+int CesiumTileset_hasLoadError(CesiumTileset* tileset) {
+    return tileset->loadError;
+}
+
+int CesiumTileset_getTileCount(CesiumTileset* tileset) {
     if (!tileset) return 0;
     return static_cast<int>(tileset->lastUpdateResult.tilesToRenderThisFrame.size());
 }
 
-CesiumTileContentType CesiumTileset_getTileContentType(const CesiumTileset* tileset, int index) {
+CesiumTileContentType CesiumTileset_getTileContentType(CesiumTileset* tileset, int index) {
     auto tile = tileset->lastUpdateResult.tilesToRenderThisFrame[index];
     auto state = tile->getState();
-
-    auto& content = tile->getContent();
     
-    if(content.isEmptyContent()) { 
+    if(tile->isEmptyContent()) { 
         return CT_TC_EMPTY;
-    } else if(content.isExternalContent()) {
+    } else if(tile->isExternalContent()) {
         return CT_TC_EXTERNAL;
-    } else if(content.isRenderContent()) {
+    } else if(tile->isRenderContent()) {
         return CT_TC_RENDER;
-    } else if(content.isUnknownContent()) {
-        return CT_TC_UNKNOWN;
     } else {
+        auto& content = tile->getContent();
+        if(content.isUnknownContent()) {
+            return CT_TC_UNKNOWN;
+        }
         return CT_TC_ERROR;
     }
 }
 
-CesiumTileLoadState CesiumTileset_getTileLoadState(const CesiumTileset* tileset, int index) {
-    auto tile = tileset->lastUpdateResult.tilesToRenderThisFrame[index];
-    auto state = tile->getState();
+CesiumTileLoadState CesiumTileset_getTileLoadState(CesiumTile* tile) {
+    auto state = ((Cesium3DTilesSelection::Tile*)tile)-> getState();
     return (CesiumTileLoadState)state;
 }
 
-void CesiumTileset_getTileData(const CesiumTileset* tileset, int index, void** data) {
+void CesiumTileset_getTileData(CesiumTileset* tileset, int index, void** data) {
     if (!tileset || index < 0 || index >= tileset->lastUpdateResult.tilesToRenderThisFrame.size()) {
         *data = nullptr;
         return;
@@ -142,5 +206,78 @@ void CesiumTileset_getTileData(const CesiumTileset* tileset, int index, void** d
     } else {
         *data = nullptr;
     }   
-}   
+}
+
+void processTileContent(Tile* tile) {
+    std::cout << "PROCESSING " << std::endl;
+    // const TileContent& content = tile->getContent();
+    // if (content.isRenderContent()) {
+    //     const TileRenderContent* renderContent = content.getRenderContent();
+    //     if (renderContent) {
+    //         // Access the glTF model
+    //         const CesiumGltf::Model& model = renderContent->getModel();
+    //         // Process the model (e.g., render it, extract information, etc.)
+    //         // ...
+    //     }
+    // }
+}
+
+void traverseTileset(Tile* tile) {
+    // Check if the tile has render content
+    // tile->is
+    // if (tile->isRenderContent()) {
+    // const TileContent& content = tile->getContent();
+    // // if (content.isRenderContent()) {
+    // //     const TileRenderContent* renderContent = content.getRenderContent();
+    // //     if (renderContent) {
+    // //         // Access the glTF model
+    // //         const CesiumGltf::Model& model = renderContent->getModel();
+    // //         // Process the model (e.g., render it, extract information, etc.)
+    // //         // ...
+    // //     }
+    // // }
+    // }
+
+    // Recursively process children
+    for (Tile& childTile : tile->getChildren()) {
+        traverseTileset(&childTile);
+    }
+}
+
+const TileRenderContent* recursiveGetContent(Tile* tile) {
+    // Check if the tile has render content
+    if (tile->isRenderContent()) {
+        const TileRenderContent* renderContent = tile->getContent().getRenderContent();
+        return renderContent;
+    }
+
+    // Recursively process children
+    for (Tile& childTile : tile->getChildren()) {
+        auto result = recursiveGetContent(&childTile);
+        if(result) {
+            return result;
+        }
+    }
+    return nullptr;
+}
+
+void CesiumTileset_checkRoot(CesiumTileset* tileset) {
+    auto root = tileset->tileset->getRootTile();
+    traverseTileset(root);
+}
+
+void* CesiumTileset_getFirstRenderContent(CesiumTile* tile) {
+    return (void*) recursiveGetContent((Tile*)tile);
+}
+
+CesiumTile* CesiumTileset_getRootTile(CesiumTileset* tileset) {
+    auto root = tileset->tileset->getRootTile();
+    return (CesiumTile*)root;
+}
+
+int32_t CesiumTileset_getNumberOfTilesLoaded(CesiumTileset* tileset) {
+    return tileset->tileset->getNumberOfTilesLoaded();
+}
+
+
 }

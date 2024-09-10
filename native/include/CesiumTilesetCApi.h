@@ -11,8 +11,21 @@ extern "C" {
 
 #include <stdint.h>
 
-// Opaque pointer to the Tileset
+// A struct that acts as an opaque pointer to Cesium3DTilesSelection::Tileset. 
+// This can be safely passed to/from the Dart/C API boundary.
+// On the native side, this can be resolved to an instance of Tileset:
+// void myMethod(CesiumTileset* cesiumTileset)  {
+//      Cesium3DTilesSelection::Tileset* tileset = (Cesium3DTilesSelection::Tileset*)cesiumTileset;
+// }
 typedef struct CesiumTileset CesiumTileset;
+
+// A struct that acts as an opaque pointer to Tile. 
+// This can be safely passed to/from the Dart/C API boundary.
+// On the native side, this can be resolved to an instance of Tile:
+// void myMethod(CesiumTile* cesiumTile)  {
+//      Cesium3DTilesSelection::Tile* tile = (Cesium3DTilesSelection::Tile*)cesiumTile;
+// }
+typedef struct CesiumTile CesiumTile;
 
 // This is copied verbatim from CesiumTileLoadState in Tile.h so we can generate the correct values with Dart ffigen
 typedef enum CesiumTileLoadState {
@@ -42,6 +55,7 @@ typedef struct {
     double viewportWidth;
     double viewportHeight;
     double horizontalFov;
+    double verticalFov;
 } CesiumViewState;
 
 // Initializes all bindings. Must be called before any other CesiumTileset_ function.
@@ -53,23 +67,42 @@ CesiumTileset* CesiumTileset_create(const char* url);
 // Create a Tileset from a Cesium ion asset
 CesiumTileset* CesiumTileset_createFromIonAsset(int64_t assetId, const char* accessToken);
 
+// Returns true if an error was encountered attempting to load this tileset. 
+int CesiumTileset_hasLoadError(CesiumTileset* tileset);
+
+// Retrieve the error message encountered when loading this tileset. Returns NULL if none.
+void CesiumTileset_getErrorMessage(CesiumTileset* tileset, char* out);
+
 // Destroy a Tileset
 void CesiumTileset_destroy(CesiumTileset* tileset);
 
+CesiumViewState CesiumTileset_createViewState(double positionX, double positionY, double positionZ, double directionX, double directionY, double directionZ, double upX, double upY, double upZ,
+double viewportWidth, double viewportHeight, double horizontalFov);
+
 // Update the view and get tiles to render
-int CesiumTileset_updateView(CesiumTileset* tileset, const CesiumViewState* viewState);
+int CesiumTileset_updateView(CesiumTileset* tileset, const CesiumViewState viewState);
 
 // Get the number of tiles to render after updating the view
-int CesiumTileset_getTileCount(const CesiumTileset* tileset);
+int CesiumTileset_getTileCount(CesiumTileset* tileset);
 
 // Get the render data for a specific tile
-void CesiumTileset_getTileRenderData(const CesiumTileset* tileset, int index, void** renderData);
+void CesiumTileset_getTileRenderData(CesiumTileset* tileset, int index, void** renderData);
 
 // Get the load state for the tile at the given index
-CesiumTileLoadState CesiumTileset_getTileLoadState(const CesiumTileset* tileset, int index);
+CesiumTileLoadState CesiumTileset_getTileLoadState(CesiumTile* tile);
 
 // Get the type of content for the tile at the given index
-CesiumTileContentType CesiumTileset_getTileContentType(const CesiumTileset* tileset, int index);
+CesiumTileContentType CesiumTileset_getTileContentType(CesiumTileset* tileset, int index);
+
+int32_t CesiumTileset_getNumberOfTilesLoaded(CesiumTileset* tileset);
+
+CesiumTile* CesiumTileset_getRootTile(CesiumTileset* tileset);
+
+void CesiumTileset_checkRoot(CesiumTileset* tileset);
+
+void* CesiumTileset_getFirstRenderContent(CesiumTile* tile);
+
+
 
 #ifdef __cplusplus
 }
