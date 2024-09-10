@@ -12,6 +12,6 @@ void main(List<String> args) async {
   final url = args[0];
 
   print("Loading from URL $url");
-  var tileset = Cesium3D.loadFromUrl(url);
+  var tileset = Cesium3D.instance.loadFromUrl(url);
 
 }

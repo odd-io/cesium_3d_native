@@ -16,13 +16,13 @@ void main(List<String> args) async {
 
   // first, let's verify that we can successfully check a failed tileset
 
-  var tileset = Cesium3D.loadFromCesiumIon(12345, "random");
+  var tileset = Cesium3D.instance.loadFromCesiumIon(12345, "random");
   var view = CesiumView(
-      Vector3.zero(), Vector3(0, 0, -1), Vector3(0, 1, 0), 500, 500, 45, 45);
-  Cesium3D.updateTilesetView(tileset, view);
+      Vector3.zero(), Vector3(0, 0, -1), Vector3(0, 1, 0), 500, 500, 45);
+  Cesium3D.instance.updateTilesetView(tileset, view);
   bool thrown = false;
   try {
-    Cesium3D.checkLoadError(tileset);
+    Cesium3D.instance.checkLoadError(tileset);
   } catch (err) {
     thrown = true;
   }
@@ -33,13 +33,14 @@ void main(List<String> args) async {
   }
 
   // now let's actually try the specified asset
-  tileset = Cesium3D.loadFromCesiumIon(assetId, accessToken);
+  tileset = Cesium3D.instance.loadFromCesiumIon(assetId, accessToken);
 
   view = CesiumView(
-      Vector3.zero(), Vector3(0, 0, -1), Vector3(0, 1, 0), 500, 500, 45, 45);
-  Cesium3D.updateTilesetView(tileset, view);
-  await Future.delayed(Duration(seconds: 1));
+      Vector3.zero(), Vector3(0, 0, -1), Vector3(0, 1, 0), 500, 500, 45);
+  var numToRender = Cesium3D.instance.updateTilesetView(tileset, view);
 
-  Cesium3D.checkLoadError(tileset);
+  Cesium3D.instance.checkLoadError(tileset);
+
+  print("numToRender $numToRender");
 
 }
