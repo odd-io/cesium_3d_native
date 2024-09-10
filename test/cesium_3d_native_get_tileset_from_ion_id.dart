@@ -42,23 +42,4 @@ void main(List<String> args) async {
 
   Cesium3D.checkLoadError(tileset);
 
-  // bool failed = false;
-  // try {
-  //   tileset = Cesium3D.loadFromCesiumIon(696969, "some_access_token");
-  //   final rootTile = Cesium3D.getRootTile(tileset);
-  //   final state = Cesium3D.getLoadState(rootTile);
-  //   print("Root tile load state : $state");
-  // } catch (err) {
-  //   failed = true;
-  // }
-
-  // if (!failed) {
-  //   throw Exception("Expected nullptr");
-  // }
-
-  // print("Tileset with incorrect access token correctly throws exception");
-
-  // final assetId = int.fromEnvironment("CESIUM_ION_TEST_ID");
-  // final accessToken = String.fromEnvironment(name)
-  // var tileset = Cesium3D.loadFromCesiumIon(asset, accessToken)
 }
