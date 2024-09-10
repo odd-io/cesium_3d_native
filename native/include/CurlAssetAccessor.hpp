@@ -107,10 +107,10 @@ public:
             // Add Accept-Encoding header for compressed responses
             chunk = curl_slist_append(chunk, "Accept-Encoding: gzip, deflate");
 
-            if (!_authToken.empty()) {
-                std::string authHeader = "Authorization: Bearer " + _authToken;
-                chunk = curl_slist_append(chunk, authHeader.c_str());
-            }
+            // if (!_authToken.empty()) {
+            //     std::string authHeader = "Authorization: Bearer " + _authToken;
+            //     chunk = curl_slist_append(chunk, authHeader.c_str());
+            // }
 
             curl_easy_setopt(curl, CURLOPT_HTTPHEADER, chunk);
 
@@ -134,13 +134,8 @@ public:
                 throw std::runtime_error(curl_easy_strerror(res));
             }
 
-            std::cout << "CURL succeeded" << std::endl;
-
             long statusCode;
             curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &statusCode);
-
-                        std::cout << "statusCode " << statusCode  << std::endl;
-
 
             char* contentType;
             curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE, &contentType);
