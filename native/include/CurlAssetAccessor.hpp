@@ -125,14 +125,22 @@ public:
             
             CURLcode res = curl_easy_perform(curl);
 
+
+
             if (res != CURLE_OK) {
+                std::cout << "CURL Failed!" << std::endl;
                 curl_easy_cleanup(curl);
                 curl_slist_free_all(chunk);
                 throw std::runtime_error(curl_easy_strerror(res));
             }
 
+            std::cout << "CURL succeeded" << std::endl;
+
             long statusCode;
             curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &statusCode);
+
+                        std::cout << "statusCode " << statusCode  << std::endl;
+
 
             char* contentType;
             curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE, &contentType);
