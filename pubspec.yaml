@@ -11,6 +11,8 @@ dependencies:
   native_toolchain_c: ^0.4.2
   ffi: ^2.1.2
   http: ^1.2.2
+  vector_math: ^2.1.4
+
   
 
 dev_dependencies:
