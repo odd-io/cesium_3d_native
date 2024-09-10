@@ -78,11 +78,11 @@ void CesiumTileset_destroy(CesiumTileset* tileset);
 CesiumViewState CesiumTileset_createViewState(double positionX, double positionY, double positionZ, double directionX, double directionY, double directionZ, double upX, double upY, double upZ,
 double viewportWidth, double viewportHeight, double horizontalFov);
 
-// Update the view and get tiles to render
+// Update the view and get the number of tiles to render
 int CesiumTileset_updateView(CesiumTileset* tileset, const CesiumViewState viewState);
 
-// Get the number of tiles to render after updating the view
-int CesiumTileset_getTileCount(CesiumTileset* tileset);
+// Returns the tile to render at this frame at the given index. Returns NULL if index is out-of-bounds.
+CesiumTile* CesiumTileset_getTileToRenderThisFrame(CesiumTileset* tileset, int index);
 
 // Get the render data for a specific tile
 void CesiumTileset_getTileRenderData(CesiumTileset* tileset, int index, void** renderData);

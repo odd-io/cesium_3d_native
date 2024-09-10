@@ -84,7 +84,6 @@ CesiumTileset* CesiumTileset_createFromIonAsset(int64_t assetId, const char* acc
 
     TilesetOptions options;
 
-    
     auto pTileset = new CesiumTileset();
     options.loadErrorCallback = [=](const TilesetLoadFailureDetails& details) {
         pTileset->loadErrorMessage = details.message;
@@ -150,12 +149,18 @@ int CesiumTileset_updateView(CesiumTileset* tileset, const CesiumViewState viewS
 
     int tilesToRender = static_cast<int>(tileset->lastUpdateResult.tilesToRenderThisFrame.size());
 
-    spdlog::default_logger()->info("Tiles to render: {}", tilesToRender);
     return tilesToRender;
 }
 
 int CesiumTileset_hasLoadError(CesiumTileset* tileset) {
     return tileset->loadError;
+}
+
+CesiumTile* CesiumTileset_getTileToRenderThisFrame(CesiumTileset* tileset, int index) {
+    if(index > tileset->lastUpdateResult.tilesToRenderThisFrame.size()) {
+        return nullptr;
+    }
+    return (CesiumTile*)tileset->lastUpdateResult.tilesToRenderThisFrame[index];
 }
 
 int CesiumTileset_getTileCount(CesiumTileset* tileset) {
