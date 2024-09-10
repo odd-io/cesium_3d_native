@@ -55,7 +55,6 @@ typedef struct {
     double viewportWidth;
     double viewportHeight;
     double horizontalFov;
-    double verticalFov;
 } CesiumViewState;
 
 // Initializes all bindings. Must be called before any other CesiumTileset_ function.
