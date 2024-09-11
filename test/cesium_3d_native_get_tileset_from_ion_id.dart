@@ -1,8 +1,8 @@
 import 'dart:io';
+import 'dart:math';
 
 import 'package:cesium_3d_native/cesium_3d_native.dart';
 import 'package:cesium_3d_native/src/cesium_view.dart';
-import 'package:test/test.dart';
 import 'package:vector_math/vector_math.dart';
 
 void main(List<String> args) async {
@@ -12,69 +12,66 @@ void main(List<String> args) async {
     exit(-1);
   }
   final assetId = int.parse(args[0]);
-  final accessToken = args[1] as String;
+  final accessToken = args[1];
 
-  // first, let's verify that we can successfully check a failed tileset
-
+  // first, verify that loading a non-existent tileset successfully throws an error
   var tileset = Cesium3D.instance.loadFromCesiumIon(12345, "random");
-  var view = CesiumView(
-      Vector3.zero(), Vector3(0, 0, -1), Vector3(0, 1, 0), 500, 500, 45);
-
-  Cesium3D.instance.updateTilesetView(tileset, view);
   bool thrown = false;
   try {
     Cesium3D.instance.checkLoadError(tileset);
   } catch (err) {
     thrown = true;
   }
-
   if (!thrown) {
-    print(
+    throw Exception(
         "Tileset load was expected to fail and throw an Exception, but none was encountered");
   }
 
-  // now let's actually try the specified asset
+  // next, attempt to load the tileset from the Cesium Ion asset ID provided on the command line
   tileset = Cesium3D.instance.loadFromCesiumIon(assetId, accessToken);
- 
+
+  Cesium3D.instance.checkLoadError(tileset);
+
   var numTilesLoaded = Cesium3D.instance.getNumTilesLoaded(tileset);
 
   print("numTilesLoaded $numTilesLoaded");
-
-  // view = CesiumView(
-  //     Vector3(0, 0, 1000), Vector3(0, 0, -1), Vector3(0, 1, 0), 500, 500, 45);
+  var view = CesiumView(Vector3(0, 0, 1000), Vector3(0, 0, -1),
+      Vector3(0, 1, 0), 500, 500, pi / 4);
 
   var numToRender = Cesium3D.instance.updateTilesetView(tileset, view);
+
+  var rootTile = Cesium3D.instance.getRootTile(tileset);
+
+  numToRender = Cesium3D.instance.updateTilesetView(tileset, view);
+
+  numTilesLoaded = Cesium3D.instance.getNumTilesLoaded(tileset);
+  print("numTilesLoaded $numTilesLoaded numToRender $numToRender");
+
   numToRender = Cesium3D.instance.updateTilesetView(tileset, view);
 
   numTilesLoaded = Cesium3D.instance.getNumTilesLoaded(tileset);
 
-  print("numTilesLoaded $numTilesLoaded");
+  Cesium3D.instance.traverseChildren(rootTile);
 
-  print("numToRender $numToRender");
+  final renderable = Cesium3D.instance.getRenderableTiles(rootTile);
 
-  Cesium3D.instance.checkLoadError(tileset);
+  int i = 0;
+  var scriptDir = File(Platform.script.path).parent.path;
+  var outputDirectory = Directory("$scriptDir/output");
 
-  var tileToRender = Cesium3D.instance.getTileToRenderThisFrame(tileset, 0);
-
-  var contentType = Cesium3D.instance.getTileContentType(tileToRender);
-
-  var loadState = Cesium3D.instance.getLoadState(tileToRender);
-
-  var rootTile = Cesium3D.instance.getRootTile(tileset);
-
-  // Cesium3D.instance.traverseChildren(rootTile);
-
-  for (int i = 0; i < 10; i++) {
-    await Future.delayed(Duration(milliseconds: 100));
-    numTilesLoaded = Cesium3D.instance.getNumTilesLoaded(tileset);
-    print("numTilesLoaded $numTilesLoaded");
-    numToRender = Cesium3D.instance.updateTilesetView(tileset, view);
+  if (outputDirectory.existsSync()) {
+    outputDirectory.deleteSync(recursive: true);
   }
-  print("Done");
 
-  // Cesium3D.instance.traverseChildren(rootTile);
+  outputDirectory.createSync();
 
-  // Cesium3D.instance.getAllRenderContent(tileToRender);
-  // Cesium3D.instance.foo(tileToRender);
-  // print();
+  for (final tile in renderable) {
+    print(Cesium3D.instance.getLoadState(tile));
+    var model = Cesium3D.instance.getModel(tile);
+    var serialized = Cesium3D.instance.serializeGltfData(model);
+    File("${outputDirectory.path}/${i}.glb").writeAsBytesSync(serialized.data);
+    serialized.free();
+    i++;
+    break;
+  }
 }
