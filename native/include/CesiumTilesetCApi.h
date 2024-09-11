@@ -11,28 +11,22 @@ extern "C" {
 
 #include <stdint.h>
 
-// A struct that acts as an opaque pointer to Cesium3DTilesSelection::Tileset. 
-// This can be safely passed to/from the Dart/C API boundary.
-// On the native side, this can be resolved to an instance of Tileset:
+// Here we define structs that act as opaque pointers to various Cesium native C++ classes.
+// These can be safely passed to/from the Dart/C API boundary; on the native side, 
+// these can be resolved to their C++ types with reinterpret_cast, e.g.:
 // void myMethod(CesiumTileset* cesiumTileset)  {
-//      Cesium3DTilesSelection::Tileset* tileset = (Cesium3DTilesSelection::Tileset*)cesiumTileset;
+//      Cesium3DTilesSelection::Tileset* tileset = reinterpret_cast<Cesium3DTilesSelection::Tileset>(cesiumTileset);
 // }
-typedef struct CesiumTileset CesiumTileset;
+typedef struct CesiumTileset CesiumTileset; //  Cesium3DTilesSelection::Tileset
+typedef struct CesiumTile CesiumTile; //  Cesium3DTilesSelection::Tile
+typedef struct CesiumGltfModel CesiumGltfModel; //  CesiumGltf::Model
 
-// A struct that acts as an opaque pointer to Tile. 
-// This can be safely passed to/from the Dart/C API boundary.
-// On the native side, this can be resolved to an instance of Tile:
-// void myMethod(CesiumTile* cesiumTile)  {
-//      Cesium3DTilesSelection::Tile* tile = (Cesium3DTilesSelection::Tile*)cesiumTile;
-// }
-typedef struct CesiumTile CesiumTile;
-
-typedef struct CesiumTilesetRenderContent CesiumTilesetRenderContent;
-
-typedef struct CesiumTilesetRenderContentTraversalResult {
-    CesiumTilesetRenderContent * const * const renderContent;
-    int32_t numRenderContent;
-} CesiumTilesetRenderContentTraversalResult;
+// Holds pointers to all current tiles with render content.
+typedef struct CesiumTilesetRenderableTiles {
+    const CesiumTile ** const tiles;
+    int32_t numTiles;
+    const int32_t maxSize;
+} CesiumTilesetRenderableTiles;
 
 // This is copied verbatim from CesiumTileLoadState in Tile.h so we can generate the correct values with Dart ffigen
 enum CesiumTileLoadState {
@@ -133,7 +127,7 @@ CesiumViewState CesiumTileset_createViewState(double positionX, double positionY
 double viewportWidth, double viewportHeight, double horizontalFov);
 
 // Update the view and get the number of tiles to render
-int CesiumTileset_updateView(CesiumTileset* tileset, const CesiumViewState viewState);
+int CesiumTileset_updateView(CesiumTileset* tileset, const CesiumViewState viewState, float deltaTime);
 
 // Returns the tile to render at this frame at the given index. Returns NULL if index is out-of-bounds.
 CesiumTile* CesiumTileset_getTileToRenderThisFrame(CesiumTileset* tileset, int index);
@@ -147,7 +141,7 @@ CesiumTileLoadState CesiumTileset_getTileLoadState(CesiumTile* tile);
 // Get the type of content for the tile at the given index
 CesiumTileContentType CesiumTileset_getTileContentType(CesiumTile* tile);
 
-void CesiumTileset_getRenderableTiles(CesiumTile* cesiumTile, CesiumTilesetRenderContentTraversalResult* out);
+void CesiumTileset_getRenderableTiles(CesiumTile* cesiumTile, CesiumTilesetRenderableTiles* const out);
 
 int32_t CesiumTileset_getNumberOfTilesLoaded(CesiumTileset* tileset);
 
@@ -158,6 +152,26 @@ CesiumBoundingVolume CesiumTile_getBoundingVolume(CesiumTile* tile);
 double3 CesiumTile_getBoundingVolumeCenter(CesiumTile* tile);
 
 void CesiumTile_traverse(CesiumTile* tile);
+
+// Get a handle to the CesiumGltf::Model object for a given tile
+CesiumGltfModel* CesiumTile_getModel(CesiumTile* tile);
+
+// Check if a tile has a valid model
+int CesiumTile_hasModel(CesiumTile* tile);
+
+// Get the number of meshes in the model
+int32_t CesiumGltfModel_getMeshCount(CesiumGltfModel* model);
+
+// Get the number of materials in the model
+int32_t CesiumGltfModel_getMaterialCount(CesiumGltfModel* model);
+
+// Get the number of textures in the model
+int32_t CesiumGltfModel_getTextureCount(CesiumGltfModel* model);
+
+uint8_t* CesiumGltfModel_serialize(CesiumGltfModel* opaqueModel, uint32_t* length);
+
+void CesiumGltfModel_free_serialized(uint8_t* serialized);
+
 
 #ifdef __cplusplus
 }

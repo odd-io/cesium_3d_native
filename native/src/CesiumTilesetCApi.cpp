@@ -1,17 +1,29 @@
 #include "CesiumTilesetCApi.h"
+
 #include <Cesium3DTilesSelection/Tileset.h>
 #include <Cesium3DTilesSelection/TilesetExternals.h>
 #include <CesiumAsync/IAssetAccessor.h>
 #include <CesiumAsync/AsyncSystem.h>
+#include <Cesium3DTilesContent/registerAllTileContentTypes.h>
+#include <Cesium3DTilesSelection/BoundingVolume.h>
+#include <CesiumGeometry/BoundingSphere.h>
+#include <CesiumGeometry/OrientedBoundingBox.h>
+#include <CesiumGeospatial/BoundingRegion.h>
+#include <CesiumGltfWriter/GltfWriter.h>
 
 #include <memory>
 #include <optional>
 #include <vector>
+#include <set>
 
 #include "CurlAssetAccessor.hpp"
 #include "PrepareRenderer.hpp"
-#include <Cesium3DTilesContent/registerAllTileContentTypes.h>
 
+#include <openssl/bio.h>
+#include <openssl/evp.h>
+#include <openssl/buffer.h>
+#include <string>
+#include <cstring>
 
 
 #include <spdlog/spdlog.h>
@@ -19,10 +31,6 @@
 #include <spdlog/async.h>
 #include <spdlog/sinks/basic_file_sink.h>
 
-#include <Cesium3DTilesSelection/BoundingVolume.h>
-#include <CesiumGeometry/BoundingSphere.h>
-#include <CesiumGeometry/OrientedBoundingBox.h>
-#include <CesiumGeospatial/BoundingRegion.h>
 
 extern "C" {
 
@@ -149,10 +157,9 @@ double viewportWidth, double viewportHeight, double horizontalFov) {
     };
 }
 
-
-
-int CesiumTileset_updateView(CesiumTileset* tileset, const CesiumViewState viewState) {
+int CesiumTileset_updateView(CesiumTileset* tileset, const CesiumViewState viewState, float deltaTime) {
     if (!tileset) return -1;
+
     Cesium3DTilesSelection::ViewState cesiumViewState = Cesium3DTilesSelection::ViewState::create(
         glm::dvec3(viewState.position[0], viewState.position[1], viewState.position[2]),
         glm::dvec3(viewState.direction[0], viewState.direction[1], viewState.direction[2]),
@@ -162,8 +169,8 @@ int CesiumTileset_updateView(CesiumTileset* tileset, const CesiumViewState viewS
         viewState.horizontalFov * viewState.viewportHeight / viewState.viewportWidth
     );
 
-    tileset->lastUpdateResult = tileset->tileset->updateView({cesiumViewState});
-
+    tileset->lastUpdateResult = tileset->tileset->updateView({cesiumViewState}, deltaTime);
+    spdlog::default_logger()->info("load progress {}", tileset->tileset->computeLoadProgress());
     // spdlog::default_logger()->info("queue len {}", tileset->lastUpdateResult.workerThreadTileLoadQueueLength);
     // spdlog::default_logger()->info("mainThreadTileLoadQueueLength {}", tileset->lastUpdateResult.mainThreadTileLoadQueueLength);
     // spdlog::default_logger()->info("tilesVisited {}", tileset->lastUpdateResult.tilesVisited);
@@ -173,9 +180,7 @@ int CesiumTileset_updateView(CesiumTileset* tileset, const CesiumViewState viewS
     // spdlog::default_logger()->info("tilesKicked {}", tileset->lastUpdateResult.tilesKicked);
     // spdlog::default_logger()->info("tilesWaitingForOcclusionResults {}", tileset->lastUpdateResult.tilesWaitingForOcclusionResults);
   
-    int tilesToRender = static_cast<int>(tileset->lastUpdateResult.tilesToRenderThisFrame.size());
-
-    return tilesToRender;
+    return static_cast<int>(tileset->lastUpdateResult.tilesToRenderThisFrame.size());
 }
 
 int CesiumTileset_hasLoadError(CesiumTileset* tileset) {
@@ -202,7 +207,7 @@ void CesiumTileset_loadTile(CesiumTile* cesiumTile) {
     return;
 
     if(state == TileLoadState::Done) {
-        spdlog::default_logger()->info("Tile loaded, ignoring.");
+        // spdlog::default_logger()->info("Tile loaded, ignoring.");
         return;
     }
 
@@ -223,53 +228,46 @@ void CesiumTileset_loadTile(CesiumTile* cesiumTile) {
     auto tileLoadResult = loadResult.wait();
     
     state = tile->getState();
-    spdlog::default_logger()->info("New Load State : {}", (int)state);
+    // spdlog::default_logger()->info("New Load State : {}", (int)state);
 }   
 
 CesiumTileContentType CesiumTileset_getTileContentType(CesiumTile* cesiumTile) {
     auto tile = (Tile*)cesiumTile;
     auto state = tile->getState();
-
-    CesiumTileset_loadTile(cesiumTile);
         
     if(tile->isEmptyContent()) { 
         auto& content = tile->getContent();
         auto ext = content.getExternalContent();
-
-        spdlog::default_logger()->info("EMPTY");
+        // spdlog::default_logger()->info("EMPTY");
         return CT_TC_EMPTY;
     } else if(tile->isExternalContent()) {
-        spdlog::default_logger()->info("EXTERNAL");
+        // spdlog::default_logger()->info("EXTERNAL");
         auto content = tile->getContent().getExternalContent();
         auto metadata = content->metadata;
-        spdlog::default_logger()->info("{}", metadata.schemaUri.value_or("No schema URI"));
-        if(metadata.schema) {
-            spdlog::default_logger()->info("Has schema!");
-        } else { 
-            spdlog::default_logger()->info("No schema");
-            if(metadata.metadata) {
-                spdlog::default_logger()->info("Has metadata");
-            } else {
-                spdlog::default_logger()->info("No metadata");
-            }
+        // spdlog::default_logger()->info("{}", metadata.schemaUri.value_or("No schema URI"));
+        // if(metadata.schema) {
+        //     spdlog::default_logger()->info("Has schema!");
+        // } else { 
+        //     spdlog::default_logger()->info("No schema");
+        //     if(metadata.metadata) {
+        //         spdlog::default_logger()->info("Has metadata");
+        //     } else {
+        //         spdlog::default_logger()->info("No metadata");
+        //     }
 
-            spdlog::default_logger()->info("{} groups", metadata.groups.size());;
-        }
-        
-        
-        
+        //     spdlog::default_logger()->info("{} groups", metadata.groups.size());;
+        // }
         return CT_TC_EXTERNAL;
     } else if(tile->isRenderContent()) {
-        spdlog::default_logger()->info("RENDER");
+        // spdlog::default_logger()->info("RENDER");
         return CT_TC_RENDER;
     } else {
         auto& content = tile->getContent();
         if(content.isUnknownContent()) {
-
-            spdlog::default_logger()->info("UNKNOWN");
+            // spdlog::default_logger()->info("UNKNOWN");
             return CT_TC_UNKNOWN;
         }
-        spdlog::default_logger()->info("ERROR");
+        // spdlog::default_logger()->info("ERROR");
         return CT_TC_ERROR;
     }
 }
@@ -279,28 +277,36 @@ CesiumTileLoadState CesiumTileset_getTileLoadState(CesiumTile* tile) {
     return (CesiumTileLoadState)state;
 }
 
-void recursiveGetContent(Tile* tile, std::vector<const TileRenderContent*>& renderable) {
-    // Check if the tile has render content
-    if (tile->isRenderContent()) {
-        const TileRenderContent* renderContent = tile->getContent().getRenderContent();
-        renderable.push_back(renderContent);
-    }
-
-    // Recursively process children
-    for (Tile& childTile : tile->getChildren()) {
-        recursiveGetContent(&childTile, renderable);
-    }
-}
-
 int CesiumTileset_getNumTilesLoaded(CesiumTileset* tileset) {
     return tileset->tileset->getNumberOfTilesLoaded();
 }
 
-void CesiumTileset_getRenderableTiles(CesiumTile* cesiumTile, CesiumTilesetRenderContentTraversalResult* out) {
-    std::vector<const TileRenderContent*> content;
-    recursiveGetContent((Tile*)cesiumTile, content);
-    (*out).numRenderContent = (int32_t)content.size();
-    memcpy((void*)out->renderContent, content.data(), content.size());
+static void recurse(Tile* tile, const std::function<void(Tile* const)>& visitor) {
+    visitor(tile);
+    
+    for (Tile& childTile : tile->getChildren()) {
+        recurse(&childTile, visitor);
+    }
+}
+
+void CesiumTileset_getRenderableTiles(CesiumTile* cesiumTile, CesiumTilesetRenderableTiles* const out) {
+    std::set<const Tile* const> content;
+    auto* tile = reinterpret_cast<Tile*>(cesiumTile);
+    const auto& visitor = [&](Tile* const tile) {
+        if(tile->isRenderContent()) {
+            content.insert(tile);
+        }
+    };
+    recurse(tile, visitor);
+    out->numTiles = (int32_t)content.size();
+    if(out->numTiles > out->maxSize) {
+        out->numTiles = out->maxSize;
+    }
+    int i = 0;
+    for(auto it =content.begin(); it != content.end(); it++) {
+        out->tiles[i] = reinterpret_cast<const CesiumTile* const>(*it);
+        i++;
+    }
 }
 
 CesiumTile* CesiumTileset_getRootTile(CesiumTileset* tileset) {
@@ -381,14 +387,188 @@ double3 CesiumTile_getBoundingVolumeCenter(CesiumTile* cesiumTile) {
     return glmTodouble3(center);
 }
 
+
+
 void CesiumTile_traverse(CesiumTile* cesiumTile) {
-    auto tile = (Tile*)cesiumTile;
-    spdlog::default_logger()->info("Traversing tile with {} children", tile->getChildren().size());
-    CesiumTileset_getTileContentType(cesiumTile);
+    auto tile = reinterpret_cast<Cesium3DTilesSelection::Tile*>(cesiumTile);
+    
+    if(CesiumTileset_getTileContentType(cesiumTile) == CT_TC_RENDER) {
+        spdlog::default_logger()->info("Loading render tile");
+        auto& content = tile->getContent();
+        auto renderContent = content.getRenderContent();
+
+        if(!renderContent) {
+            spdlog::default_logger()->info("No render content");
+        } else { 
+            auto model = renderContent->getModel();            
+            spdlog::default_logger()->info("Got model with {} buffers", model.buffers.size());
+        }
+        // CesiumTileset_loadTile(cesiumTile);
+    }
+    
     // Recursively process children
     for (Tile& childTile : tile->getChildren()) {
         CesiumTile_traverse((CesiumTile*) &childTile);
     }
+}
+
+CesiumGltfModel* CesiumTile_getModel(CesiumTile* tile) {
+    Cesium3DTilesSelection::Tile* cesiumTile = reinterpret_cast<Cesium3DTilesSelection::Tile*>(tile);
+    if (cesiumTile->isRenderContent()) {
+        const auto& content = cesiumTile->getContent();
+        const auto* renderContent = content.getRenderContent();
+        if (renderContent) {
+            return reinterpret_cast<CesiumGltfModel*>(const_cast<CesiumGltf::Model*>(&renderContent->getModel()));
+        }
+    }
+    return nullptr;
+}
+
+int CesiumTile_hasModel(CesiumTile* tile) {
+    return CesiumTile_getModel(tile) != nullptr;
+}
+
+int32_t CesiumGltfModel_getMeshCount(CesiumGltfModel* model) {
+    if (!model) return 0;
+    const CesiumGltf::Model* gltfModel = reinterpret_cast<const CesiumGltf::Model*>(model);
+    return static_cast<int32_t>(gltfModel->meshes.size());
+}
+
+int32_t CesiumGltfModel_getMaterialCount(CesiumGltfModel* model) {
+    if (!model) return 0;
+    const CesiumGltf::Model* gltfModel = reinterpret_cast<const CesiumGltf::Model*>(model);
+    return static_cast<int32_t>(gltfModel->materials.size());
+}
+
+int32_t CesiumGltfModel_getTextureCount(CesiumGltfModel* model) {
+    if (!model) return 0;
+    const CesiumGltf::Model* gltfModel = reinterpret_cast<const CesiumGltf::Model*>(model);
+    return static_cast<int32_t>(gltfModel->textures.size());
+}
+
+std::string base64_encode(const unsigned char* input, int length) {
+    BIO *bio, *b64;
+    BUF_MEM *bufferPtr;
+
+    b64 = BIO_new(BIO_f_base64());
+    bio = BIO_new(BIO_s_mem());
+    bio = BIO_push(b64, bio);
+
+    BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL); // Ignore newlines - write everything in one line
+    BIO_write(bio, input, length);
+    BIO_flush(bio);
+    BIO_get_mem_ptr(bio, &bufferPtr);
+    BIO_set_close(bio, BIO_NOCLOSE);
+    BIO_free_all(bio);
+
+    std::string output(bufferPtr->data, bufferPtr->length);
+    BUF_MEM_free(bufferPtr);
+
+    return output;
+}
+
+uint8_t* CesiumGltfModel_serialize_to_data_uri(CesiumGltfModel* opaqueModel, uint32_t* length) {
+    CesiumGltfWriter::GltfWriter writer;
+
+    auto model = reinterpret_cast<CesiumGltf::Model*>(opaqueModel);
+    
+    std::vector<std::byte> bufferData;
+    for (CesiumGltf::Buffer& buffer : model->buffers) {
+         if(buffer.uri) {
+            spdlog::default_logger()->error(buffer.uri.value());
+            spdlog::default_logger()->flush();
+            exit(-1);
+        } else {
+            std::string base64Data = base64_encode(
+                reinterpret_cast<const unsigned char*>(buffer.cesium.data.data()),
+                buffer.cesium.data.size()
+            );
+            std::string newString("data:application/octet-stream;base64," + base64Data);
+            buffer.uri.emplace(newString);
+        } 
+    }
+  
+    CesiumGltfWriter::GltfWriterOptions options;
+    options.binaryChunkByteAlignment = 4;  
+    options.prettyPrint = false;
+    
+    // since we've stored all buffer data in the URI property, we don't need to store the 
+    auto result = writer.writeGlb(*model, gsl::span<const std::byte>(bufferData), options);
+
+    for(auto& err : result.errors) { 
+        spdlog::default_logger()->error(err);
+    }
+
+    for(auto& msg : result.warnings) { 
+        spdlog::default_logger()->warn(msg);
+    }
+
+    uint8_t* serialized = (uint8_t*) calloc(result.gltfBytes.size(), 1);
+
+    memcpy(serialized, result.gltfBytes.data(), result.gltfBytes.size());
+
+    *length = result.gltfBytes.size();
+
+    return serialized;
+    
+}
+
+uint8_t* CesiumGltfModel_serialize(CesiumGltfModel* opaqueModel, uint32_t* length) {
+    CesiumGltfWriter::GltfWriter writer;
+
+    auto model = reinterpret_cast<CesiumGltf::Model*>(opaqueModel);
+    
+    // The glb format only permits a single BIN chunk.
+    // We therefore need to concatenate all buffer data and update the bufferView so that:
+    // - the buffer index always points to zero
+    // - the offset is now relative to the start of this buffer
+    std::vector<int64_t> offsets;
+    int64_t offset = 0;
+    std::vector<std::byte> bufferData;
+    for (CesiumGltf::Buffer& buffer : model->buffers) {
+        if(buffer.uri) {
+            spdlog::default_logger()->error(buffer.uri.value());
+            spdlog::default_logger()->flush();
+            exit(-1);
+        }
+        offsets.push_back(offset);
+        offset += buffer.byteLength;
+        bufferData.insert(bufferData.end(), buffer.cesium.data.begin(), buffer.cesium.data.end());
+    }
+
+    for (CesiumGltf::BufferView& bufferView : model->bufferViews) {
+        int offset = offsets[bufferView.buffer];
+        bufferView.byteOffset += offset;
+        bufferView.buffer = 0;
+    }
+
+    CesiumGltfWriter::GltfWriterOptions options;
+    options.binaryChunkByteAlignment = 4;  
+    options.prettyPrint = false;
+    
+    // since we've stored all buffer data in the URI property, we don't need to store the 
+    auto result = writer.writeGlb(*model, gsl::span<const std::byte>(bufferData), options);
+
+    for(auto& err : result.errors) { 
+        spdlog::default_logger()->error(err);
+    }
+
+    for(auto& msg : result.warnings) { 
+        spdlog::default_logger()->warn(msg);
+    }
+
+    uint8_t* serialized = (uint8_t*) calloc(result.gltfBytes.size(), 1);
+
+    memcpy(serialized, result.gltfBytes.data(), result.gltfBytes.size());
+
+    *length = result.gltfBytes.size();
+
+    return serialized;
+    
+}
+
+void CesiumGltfModel_free_serialized(uint8_t* data) {
+    free(data);
 }
 
 }

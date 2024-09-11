@@ -23,6 +23,11 @@ external ffi.Pointer<CesiumTileset> CesiumTileset_createFromIonAsset(
 );
 
 @ffi.Native<ffi.Int Function(ffi.Pointer<CesiumTileset>)>()
+external int CesiumTileset_getNumTilesLoaded(
+  ffi.Pointer<CesiumTileset> tileset,
+);
+
+@ffi.Native<ffi.Int Function(ffi.Pointer<CesiumTileset>)>()
 external int CesiumTileset_hasLoadError(
   ffi.Pointer<CesiumTileset> tileset,
 );
@@ -52,7 +57,6 @@ external void CesiumTileset_destroy(
         ffi.Double,
         ffi.Double,
         ffi.Double,
-        ffi.Double,
         ffi.Double)>()
 external CesiumViewState CesiumTileset_createViewState(
   double positionX,
@@ -67,7 +71,6 @@ external CesiumViewState CesiumTileset_createViewState(
   double viewportWidth,
   double viewportHeight,
   double horizontalFov,
-  double verticalFov,
 );
 
 @ffi.Native<ffi.Int Function(ffi.Pointer<CesiumTileset>, CesiumViewState)>()
@@ -76,9 +79,11 @@ external int CesiumTileset_updateView(
   CesiumViewState viewState,
 );
 
-@ffi.Native<ffi.Int Function(ffi.Pointer<CesiumTileset>)>()
-external int CesiumTileset_getTileCount(
+@ffi.Native<
+    ffi.Pointer<CesiumTile> Function(ffi.Pointer<CesiumTileset>, ffi.Int)>()
+external ffi.Pointer<CesiumTile> CesiumTileset_getTileToRenderThisFrame(
   ffi.Pointer<CesiumTileset> tileset,
+  int index,
 );
 
 @ffi.Native<
@@ -95,10 +100,17 @@ external int CesiumTileset_getTileLoadState(
   ffi.Pointer<CesiumTile> tile,
 );
 
-@ffi.Native<ffi.Int32 Function(ffi.Pointer<CesiumTileset>, ffi.Int)>()
+@ffi.Native<ffi.Int32 Function(ffi.Pointer<CesiumTile>)>()
 external int CesiumTileset_getTileContentType(
-  ffi.Pointer<CesiumTileset> tileset,
-  int index,
+  ffi.Pointer<CesiumTile> tile,
+);
+
+@ffi.Native<
+    ffi.Void Function(ffi.Pointer<CesiumTile>,
+        ffi.Pointer<CesiumTilesetRenderContentTraversalResult>)>()
+external void CesiumTileset_getRenderableTiles(
+  ffi.Pointer<CesiumTile> cesiumTile,
+  ffi.Pointer<CesiumTilesetRenderContentTraversalResult> out,
 );
 
 @ffi.Native<ffi.Int32 Function(ffi.Pointer<CesiumTileset>)>()
@@ -111,19 +123,33 @@ external ffi.Pointer<CesiumTile> CesiumTileset_getRootTile(
   ffi.Pointer<CesiumTileset> tileset,
 );
 
-@ffi.Native<ffi.Void Function(ffi.Pointer<CesiumTileset>)>()
-external void CesiumTileset_checkRoot(
-  ffi.Pointer<CesiumTileset> tileset,
+@ffi.Native<CesiumBoundingVolume Function(ffi.Pointer<CesiumTile>)>()
+external CesiumBoundingVolume CesiumTile_getBoundingVolume(
+  ffi.Pointer<CesiumTile> tile,
 );
 
-@ffi.Native<ffi.Pointer<ffi.Void> Function(ffi.Pointer<CesiumTile>)>()
-external ffi.Pointer<ffi.Void> CesiumTileset_getFirstRenderContent(
+@ffi.Native<double3 Function(ffi.Pointer<CesiumTile>)>()
+external double3 CesiumTile_getBoundingVolumeCenter(
+  ffi.Pointer<CesiumTile> tile,
+);
+
+@ffi.Native<ffi.Void Function(ffi.Pointer<CesiumTile>)>()
+external void CesiumTile_traverse(
   ffi.Pointer<CesiumTile> tile,
 );
 
 final class CesiumTileset extends ffi.Opaque {}
 
 final class CesiumTile extends ffi.Opaque {}
+
+final class CesiumTilesetRenderContent extends ffi.Opaque {}
+
+final class CesiumTilesetRenderContentTraversalResult extends ffi.Struct {
+  external ffi.Pointer<ffi.Pointer<CesiumTilesetRenderContent>> renderContent;
+
+  @ffi.Int32()
+  external int numRenderContent;
+}
 
 abstract class CesiumTileLoadState {
   static const int CT_LS_UNLOADING = -2;
@@ -141,6 +167,17 @@ abstract class CesiumTileContentType {
   static const int CT_TC_EXTERNAL = 2;
   static const int CT_TC_UNKNOWN = 3;
   static const int CT_TC_ERROR = 4;
+}
+
+final class double3 extends ffi.Struct {
+  @ffi.Double()
+  external double x;
+
+  @ffi.Double()
+  external double y;
+
+  @ffi.Double()
+  external double z;
 }
 
 final class CesiumViewState extends ffi.Struct {
@@ -161,7 +198,61 @@ final class CesiumViewState extends ffi.Struct {
 
   @ffi.Double()
   external double horizontalFov;
+}
+
+final class CesiumBoundingSphere extends ffi.Struct {
+  @ffi.Array.multi([3])
+  external ffi.Array<ffi.Double> center;
 
   @ffi.Double()
-  external double verticalFov;
+  external double radius;
+}
+
+final class CesiumOrientedBoundingBox extends ffi.Struct {
+  @ffi.Array.multi([3])
+  external ffi.Array<ffi.Double> center;
+
+  @ffi.Array.multi([9])
+  external ffi.Array<ffi.Double> halfAxes;
+}
+
+final class CesiumBoundingRegion extends ffi.Struct {
+  @ffi.Double()
+  external double west;
+
+  @ffi.Double()
+  external double south;
+
+  @ffi.Double()
+  external double east;
+
+  @ffi.Double()
+  external double north;
+
+  @ffi.Double()
+  external double minimumHeight;
+
+  @ffi.Double()
+  external double maximumHeight;
+}
+
+abstract class CesiumBoundingVolumeType {
+  static const int CT_BV_SPHERE = 0;
+  static const int CT_BV_ORIENTED_BOX = 1;
+  static const int CT_BV_REGION = 2;
+}
+
+final class CesiumBoundingVolume extends ffi.Struct {
+  @ffi.Int32()
+  external int type;
+
+  external UnnamedUnion1 volume;
+}
+
+final class UnnamedUnion1 extends ffi.Union {
+  external CesiumBoundingSphere sphere;
+
+  external CesiumOrientedBoundingBox orientedBox;
+
+  external CesiumBoundingRegion region;
 }
