@@ -318,6 +318,31 @@ int32_t CesiumTileset_getNumberOfTilesLoaded(CesiumTileset* tileset) {
     return tileset->tileset->getNumberOfTilesLoaded();
 }
 
+double4x4 CesiumTile_getTransform(CesiumTile* cesiumTile) {
+    Cesium3DTilesSelection::Tile* tile = reinterpret_cast<Cesium3DTilesSelection::Tile*>(cesiumTile);
+
+    auto transform = tile->getTransform();
+    return double4x4 {
+        transform[0][0],
+        transform[0][1],
+        transform[0][2],
+        transform[0][3],
+        transform[1][0],
+        transform[1][1],
+        transform[1][2],
+        transform[1][3],
+        transform[2][0],
+        transform[2][1],
+        transform[2][2],
+        transform[2][3],
+        transform[3][0],
+        transform[3][1],
+        transform[3][2],
+        transform[3][3],
+    };
+}
+
+
 CesiumBoundingVolume CesiumTile_getBoundingVolume(CesiumTile* cesiumTile) {
     Cesium3DTilesSelection::Tile* tile = reinterpret_cast<Cesium3DTilesSelection::Tile*>(cesiumTile);
     const Cesium3DTilesSelection::BoundingVolume& bv = tile->getBoundingVolume();

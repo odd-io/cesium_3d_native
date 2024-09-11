@@ -56,6 +56,13 @@ typedef struct {
     double z;
 } double3;
 
+typedef struct { 
+    double col1[4];
+    double col2[4];
+    double col3[4];
+    double col4[4];
+} double4x4;
+
 // Simplified view state structure
 typedef struct {
     double position[3];
@@ -150,6 +157,8 @@ CesiumTile* CesiumTileset_getRootTile(CesiumTileset* tileset);
 CesiumBoundingVolume CesiumTile_getBoundingVolume(CesiumTile* tile);
 
 double3 CesiumTile_getBoundingVolumeCenter(CesiumTile* tile);
+
+double4x4 CesiumTile_getTransform(CesiumTile* tile);
 
 void CesiumTile_traverse(CesiumTile* tile);
 
