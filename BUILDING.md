@@ -18,7 +18,7 @@ libdir=/tmp/cesium_3d_native_libs
 mkdir -p $libdir
 for file in $(find . -name "*.a"); do cp $file $libdir; done
 pkgdir=$HOME/.ezvcpkg # the cesium-native build process uses vcpkg for dependencies like zstd/absl/etc. These will be stored as static libraries in a subdirectory under $HOME/.ezvcpkg (e.g. for me it's "/Users/nickfisher/.ezvcpkg/2024.07.12"). If you have multiple subdirectories, you'll need to figure out which one and change pkgdir appropriately.
-for file in $(find  -name "*.a"); do cp $file $libdir; done #
+for file in $(find $pkgdir -name "*.a"); do cp $file $libdir; done 
 
 
 
