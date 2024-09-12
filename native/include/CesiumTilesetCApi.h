@@ -119,7 +119,7 @@ void CesiumTileset_initialize();
 void CesiumTileset_pumpAsyncQueue();
 
 // Create a Tileset from a URL
-CesiumTileset* CesiumTileset_create(const char* url);
+CesiumTileset* CesiumTileset_create(const char* url, void(*onRootTileAvailableEvent)());
 
 // Create a Tileset from a Cesium ion asset. 
 CesiumTileset* CesiumTileset_createFromIonAsset(int64_t assetId, const char* accessToken, void(*onRootTileAvailableEvent)());

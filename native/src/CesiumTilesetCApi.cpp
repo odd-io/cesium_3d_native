@@ -144,7 +144,7 @@ void CesiumTileset_initialize() {
 
 }
 
-CesiumTileset* CesiumTileset_create(const char* url) {
+CesiumTileset* CesiumTileset_create(const char* url, void(*onRootTileAvailableEvent)()) {
     auto pAssetAccessor = std::dynamic_pointer_cast<CesiumAsync::IAssetAccessor>(std::make_shared<CurlAssetAccessor>());
     auto pResourcePreparer = std::dynamic_pointer_cast<Cesium3DTilesSelection::IPrepareRendererResources>(std::make_shared<SimplePrepareRendererResource>());
     auto pMockedCreditSystem = std::make_shared<CesiumUtility::CreditSystem>();
@@ -158,16 +158,28 @@ CesiumTileset* CesiumTileset_create(const char* url) {
     externals.pAssetAccessor = pAssetAccessor;
     externals.pPrepareRendererResources = pResourcePreparer;
 
+    TilesetOptions options;
+
     auto pTileset = new CesiumTileset();
+    options.loadErrorCallback = [=](const TilesetLoadFailureDetails& details) {
+        pTileset->loadErrorMessage = details.message;
+        spdlog::default_logger()->error(details.message);
+        pTileset->loadError = true;
+    };
     pTileset->tileset = std::make_unique<Cesium3DTilesSelection::Tileset>(
         externals,
-        url
+        url,
+        options
     );
+    
+    pTileset->tileset->getRootTileAvailableEvent().thenInMainThread([=]() { 
+        onRootTileAvailableEvent();
+    });
+   
     asyncSystem.dispatchMainThreadTasks();
     return pTileset;
 }
 
-std::vector<CesiumAsync::Future<void>> _futures;
 CesiumTileset* CesiumTileset_createFromIonAsset(int64_t assetId, const char* accessToken, void(*onRootTileAvailableEvent)()) {
     auto pAssetAccessor = std::dynamic_pointer_cast<CesiumAsync::IAssetAccessor>(std::make_shared<CurlAssetAccessor>(accessToken));
     auto pResourcePreparer = std::dynamic_pointer_cast<Cesium3DTilesSelection::IPrepareRendererResources>(std::make_shared<SimplePrepareRendererResource>());
@@ -196,10 +208,9 @@ CesiumTileset* CesiumTileset_createFromIonAsset(int64_t assetId, const char* acc
         options
     );
 
-    _futures.push_back(pTileset->tileset->getRootTileAvailableEvent().thenInMainThread([=]() { 
+    pTileset->tileset->getRootTileAvailableEvent().thenInMainThread([=]() { 
         onRootTileAvailableEvent();
-    }));
-    
+    });
    
     asyncSystem.dispatchMainThreadTasks();
      
