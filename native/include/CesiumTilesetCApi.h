@@ -116,11 +116,13 @@ typedef struct CesiumBoundingVolume CesiumBoundingVolume;
 // Initializes all bindings. Must be called before any other CesiumTileset_ function.
 void CesiumTileset_initialize();
 
+void CesiumTileset_pumpAsyncQueue();
+
 // Create a Tileset from a URL
 CesiumTileset* CesiumTileset_create(const char* url);
 
-// Create a Tileset from a Cesium ion asset
-CesiumTileset* CesiumTileset_createFromIonAsset(int64_t assetId, const char* accessToken);
+// Create a Tileset from a Cesium ion asset. 
+CesiumTileset* CesiumTileset_createFromIonAsset(int64_t assetId, const char* accessToken, void(*onRootTileAvailableEvent)());
 
 int CesiumTileset_getNumTilesLoaded(CesiumTileset* tileset);
 

@@ -15,6 +15,12 @@
 #include <optional>
 #include <vector>
 #include <set>
+#include <queue>
+#include <mutex>
+#include <condition_variable>
+#include <thread>
+#include <atomic>
+#include <functional>
 
 #include "CurlAssetAccessor.hpp"
 #include "PrepareRenderer.hpp"
@@ -36,12 +42,66 @@ extern "C" {
 
 using namespace Cesium3DTilesSelection;
 
+#include <queue>
+#include <mutex>
+#include <condition_variable>
+#include <thread>
+#include <atomic>
+#include <functional>
+
 class SimpleTaskProcessor : public CesiumAsync::ITaskProcessor {
 public:
-  virtual void startTask(std::function<void()> f) override { 
-    f(); 
-  }
+    SimpleTaskProcessor() : running(true) {
+        workerThread = std::thread(&SimpleTaskProcessor::processJobs, this);
+    }
+
+    ~SimpleTaskProcessor() {
+        {
+            std::unique_lock<std::mutex> lock(queueMutex);
+            running = false;
+            condition.notify_one();
+        }
+        if (workerThread.joinable()) {
+            workerThread.join();
+        }
+    }
+
+    virtual void startTask(std::function<void()> f) override {
+        std::unique_lock<std::mutex> lock(queueMutex);
+        jobQueue.push(std::move(f));
+        condition.notify_one();
+    }
+
+private:
+    void processJobs() {
+        while (running) {
+            std::function<void()> job;
+            {
+                std::unique_lock<std::mutex> lock(queueMutex);
+                condition.wait(lock, [this] { return !jobQueue.empty() || !running; });
+                if (!running && jobQueue.empty()) {
+                    return;
+                }
+                job = std::move(jobQueue.front());
+                jobQueue.pop();
+            }
+            job();
+        }
+    }
+
+    std::queue<std::function<void()>> jobQueue;
+    std::mutex queueMutex;
+    std::condition_variable condition;
+    std::thread workerThread;
+    std::atomic<bool> running;
 };
+
+// class SimpleTaskProcessor : public CesiumAsync::ITaskProcessor {
+// public:
+//   virtual void startTask(std::function<void()> f) override { 
+//     f(); 
+//   }
+// };
 
 struct CesiumTileset {
     std::unique_ptr<Cesium3DTilesSelection::Tileset> tileset;
@@ -59,11 +119,13 @@ double3 glmTodouble3(const glm::dvec3& vec) {
 // Specifically, the API does not need re-initializiang after a Dart/Flutter hot reload.
 // This flag is set to true after the first call to CesiumTileset_initialize(); all subsequent calls will be ignored.
 static bool _initialized = false;
-
+static CesiumAsync::AsyncSystem asyncSystem { nullptr };
 void CesiumTileset_initialize() {
     if(_initialized) {
         return;
     }
+ 
+    asyncSystem = CesiumAsync::AsyncSystem {  std::make_shared<SimpleTaskProcessor>() };
 
     auto console = spdlog::stdout_color_mt("cesium_logger");
     spdlog::set_default_logger(console);
@@ -85,7 +147,6 @@ void CesiumTileset_initialize() {
 CesiumTileset* CesiumTileset_create(const char* url) {
     auto pAssetAccessor = std::dynamic_pointer_cast<CesiumAsync::IAssetAccessor>(std::make_shared<CurlAssetAccessor>());
     auto pResourcePreparer = std::dynamic_pointer_cast<Cesium3DTilesSelection::IPrepareRendererResources>(std::make_shared<SimplePrepareRendererResource>());
-    CesiumAsync::AsyncSystem asyncSystem{std::make_shared<SimpleTaskProcessor>()};
     auto pMockedCreditSystem = std::make_shared<CesiumUtility::CreditSystem>();
 
     Cesium3DTilesSelection::TilesetExternals externals {
@@ -106,10 +167,10 @@ CesiumTileset* CesiumTileset_create(const char* url) {
     return pTileset;
 }
 
-CesiumTileset* CesiumTileset_createFromIonAsset(int64_t assetId, const char* accessToken) {
+std::vector<CesiumAsync::Future<void>> _futures;
+CesiumTileset* CesiumTileset_createFromIonAsset(int64_t assetId, const char* accessToken, void(*onRootTileAvailableEvent)()) {
     auto pAssetAccessor = std::dynamic_pointer_cast<CesiumAsync::IAssetAccessor>(std::make_shared<CurlAssetAccessor>(accessToken));
     auto pResourcePreparer = std::dynamic_pointer_cast<Cesium3DTilesSelection::IPrepareRendererResources>(std::make_shared<SimplePrepareRendererResource>());
-    CesiumAsync::AsyncSystem asyncSystem{std::make_shared<SimpleTaskProcessor>()};
     auto pMockedCreditSystem = std::make_shared<CesiumUtility::CreditSystem>();
 
     Cesium3DTilesSelection::TilesetExternals externals {
@@ -135,9 +196,18 @@ CesiumTileset* CesiumTileset_createFromIonAsset(int64_t assetId, const char* acc
         options
     );
 
+    _futures.push_back(pTileset->tileset->getRootTileAvailableEvent().thenInMainThread([=]() { 
+        onRootTileAvailableEvent();
+    }));
+    
+   
     asyncSystem.dispatchMainThreadTasks();
- 
+     
     return pTileset;
+}
+
+void CesiumTileset_pumpAsyncQueue() { 
+    asyncSystem.dispatchMainThreadTasks();
 }
 
 void CesiumTileset_getErrorMessage(CesiumTileset* tileset, char* out) {
@@ -200,6 +270,7 @@ int CesiumTileset_getTilesKicked(CesiumTileset* tileset) {
     return static_cast<int>(tileset->lastUpdateResult.tilesKicked);
 }
 
+
 int CesiumTileset_hasLoadError(CesiumTileset* tileset) {
     return tileset->loadError;
 }
@@ -230,7 +301,7 @@ void CesiumTileset_loadTile(CesiumTile* cesiumTile) {
 
     auto pAssetAccessor = std::dynamic_pointer_cast<CesiumAsync::IAssetAccessor>(std::make_shared<CurlAssetAccessor>(""));
     auto pResourcePreparer = std::dynamic_pointer_cast<Cesium3DTilesSelection::IPrepareRendererResources>(std::make_shared<SimplePrepareRendererResource>());
-    CesiumAsync::AsyncSystem asyncSystem{std::make_shared<SimpleTaskProcessor>()};
+
     auto pMockedCreditSystem = std::make_shared<CesiumUtility::CreditSystem>();
         
     TilesetContentOptions contentOptions;
