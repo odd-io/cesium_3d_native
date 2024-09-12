@@ -55,8 +55,15 @@ double3 glmTodouble3(const glm::dvec3& vec) {
     return {vec.x, vec.y, vec.z};
 }
 
+// CesiumTileset_initialize() only needs to be called once over the lifetime of an application.
+// Specifically, the API does not need re-initializiang after a Dart/Flutter hot reload.
+// This flag is set to true after the first call to CesiumTileset_initialize(); all subsequent calls will be ignored.
+static bool _initialized = false;
+
 void CesiumTileset_initialize() {
-    Cesium3DTilesContent::registerAllTileContentTypes();
+    if(_initialized) {
+        return;
+    }
 
     auto console = spdlog::stdout_color_mt("cesium_logger");
     spdlog::set_default_logger(console);
@@ -66,8 +73,13 @@ void CesiumTileset_initialize() {
 
     // Enable backtrace logging (optional)
     spdlog::enable_backtrace(32); // Keep a backtrace of 32 messages
+    
+    Cesium3DTilesContent::registerAllTileContentTypes();
+    
+    spdlog::default_logger()->info("Cesium Native bindings initialized");
 
-    spdlog::default_logger()->info("Initialized");
+    _initialized = true;
+
 }
 
 CesiumTileset* CesiumTileset_create(const char* url) {
@@ -90,6 +102,7 @@ CesiumTileset* CesiumTileset_create(const char* url) {
         externals,
         url
     );
+    asyncSystem.dispatchMainThreadTasks();
     return pTileset;
 }
 
@@ -170,7 +183,7 @@ int CesiumTileset_updateView(CesiumTileset* tileset, const CesiumViewState viewS
     );
 
     tileset->lastUpdateResult = tileset->tileset->updateView({cesiumViewState}, deltaTime);
-    spdlog::default_logger()->info("load progress {}", tileset->tileset->computeLoadProgress());
+    // spdlog::default_logger()->info("load progress {}", tileset->tileset->computeLoadProgress());
     // spdlog::default_logger()->info("queue len {}", tileset->lastUpdateResult.workerThreadTileLoadQueueLength);
     // spdlog::default_logger()->info("mainThreadTileLoadQueueLength {}", tileset->lastUpdateResult.mainThreadTileLoadQueueLength);
     // spdlog::default_logger()->info("tilesVisited {}", tileset->lastUpdateResult.tilesVisited);
@@ -181,6 +194,10 @@ int CesiumTileset_updateView(CesiumTileset* tileset, const CesiumViewState viewS
     // spdlog::default_logger()->info("tilesWaitingForOcclusionResults {}", tileset->lastUpdateResult.tilesWaitingForOcclusionResults);
   
     return static_cast<int>(tileset->lastUpdateResult.tilesToRenderThisFrame.size());
+}
+
+int CesiumTileset_getTilesKicked(CesiumTileset* tileset) {
+    return static_cast<int>(tileset->lastUpdateResult.tilesKicked);
 }
 
 int CesiumTileset_hasLoadError(CesiumTileset* tileset) {
@@ -225,10 +242,6 @@ void CesiumTileset_loadTile(CesiumTile* cesiumTile) {
     
     asyncSystem.dispatchMainThreadTasks();
 
-    auto tileLoadResult = loadResult.wait();
-    
-    state = tile->getState();
-    // spdlog::default_logger()->info("New Load State : {}", (int)state);
 }   
 
 CesiumTileContentType CesiumTileset_getTileContentType(CesiumTile* cesiumTile) {
@@ -350,6 +363,7 @@ CesiumBoundingVolume CesiumTile_getBoundingVolume(CesiumTile* cesiumTile) {
     CesiumBoundingVolume result;
 
     if (std::holds_alternative<CesiumGeometry::BoundingSphere>(bv)) {
+        spdlog::default_logger()->info("SPHERE");
         const auto& sphere = std::get<CesiumGeometry::BoundingSphere>(bv);
         result.type = CT_BV_SPHERE;
         result.volume.sphere.center[0] = sphere.getCenter().x;
@@ -358,17 +372,22 @@ CesiumBoundingVolume CesiumTile_getBoundingVolume(CesiumTile* cesiumTile) {
         result.volume.sphere.radius = sphere.getRadius();
     }
     else if (std::holds_alternative<CesiumGeometry::OrientedBoundingBox>(bv)) {
+        spdlog::default_logger()->info("OBB");
         const auto& obb = std::get<CesiumGeometry::OrientedBoundingBox>(bv);
         result.type = CT_BV_ORIENTED_BOX;
         result.volume.orientedBox.center[0] = obb.getCenter().x;
         result.volume.orientedBox.center[1] = obb.getCenter().y;
         result.volume.orientedBox.center[2] = obb.getCenter().z;
-        for (int i = 0; i < 9; ++i) {
-            auto axis =obb.getHalfAxes()[i / 3];
-            result.volume.orientedBox.halfAxes[i] = axis[i % 3];
+        for(int i= 0; i < 3; i++) {
+            auto axis = obb.getHalfAxes()[i];
+            // spdlog::default_logger()->info("Axis {} {} {} {}", axis[0], axis[1], axis[2], i % 3);
+            for (int j = 0; j < 3; ++j) {
+                result.volume.orientedBox.halfAxes[(i*3)+j] = axis[j];
+            }
         }
     }
     else if (std::holds_alternative<CesiumGeospatial::BoundingRegion>(bv)) {
+        spdlog::default_logger()->info("REGION");
         const auto& region = std::get<CesiumGeospatial::BoundingRegion>(bv);
         result.type = CT_BV_REGION;
         result.volume.region.west = region.getRectangle().getWest();
@@ -378,7 +397,19 @@ CesiumBoundingVolume CesiumTile_getBoundingVolume(CesiumTile* cesiumTile) {
         result.volume.region.minimumHeight = region.getMinimumHeight();
         result.volume.region.maximumHeight = region.getMaximumHeight();
     }
+    else if (std::holds_alternative<CesiumGeospatial::BoundingRegionWithLooseFittingHeights>(bv)) {
+        spdlog::default_logger()->info("REGION LOOSE");
+        const auto& region = std::get<CesiumGeospatial::BoundingRegionWithLooseFittingHeights>(bv);
+        result.type = CT_BV_REGION;
+        result.volume.region.west = region.getBoundingRegion().getRectangle().getWest();
+        result.volume.region.south = region.getBoundingRegion().getRectangle().getSouth();
+        result.volume.region.east = region.getBoundingRegion().getRectangle().getEast();
+        result.volume.region.north = region.getBoundingRegion().getRectangle().getNorth();
+        result.volume.region.minimumHeight = region.getBoundingRegion().getMinimumHeight();
+        result.volume.region.maximumHeight = region.getBoundingRegion().getMaximumHeight();
+    }
     else {
+        spdlog::default_logger()->info("OTHER");
         // Handle unexpected bounding volume type
         result.type = CT_BV_SPHERE;
         result.volume.sphere = {{0, 0, 0}, 0};
@@ -386,6 +417,21 @@ CesiumBoundingVolume CesiumTile_getBoundingVolume(CesiumTile* cesiumTile) {
 
     return result;
 }
+
+double CesiumTile_squaredDistanceToBoundingVolume(CesiumTile* oTile, CesiumViewState oViewState) {
+    Cesium3DTilesSelection::ViewState viewState = Cesium3DTilesSelection::ViewState::create(
+        glm::dvec3(oViewState.position[0], oViewState.position[1], oViewState.position[2]),
+        glm::dvec3(oViewState.direction[0], oViewState.direction[1], oViewState.direction[2]),
+        glm::dvec3(oViewState.up[0], oViewState.up[1], oViewState.up[2]),
+        glm::dvec2(oViewState.viewportWidth, oViewState.viewportHeight),
+        oViewState.horizontalFov,
+        oViewState.horizontalFov * oViewState.viewportHeight / oViewState.viewportWidth
+    );
+    
+    Cesium3DTilesSelection::Tile* tile = reinterpret_cast<Cesium3DTilesSelection::Tile*>(oTile);
+    return viewState.computeDistanceSquaredToBoundingVolume(tile->getBoundingVolume());
+}
+
 
 double3 CesiumTile_getBoundingVolumeCenter(CesiumTile* cesiumTile) {
     Cesium3DTilesSelection::Tile* tile = reinterpret_cast<Cesium3DTilesSelection::Tile*>(cesiumTile);
@@ -426,7 +472,7 @@ void CesiumTile_traverse(CesiumTile* cesiumTile) {
             spdlog::default_logger()->info("No render content");
         } else { 
             auto model = renderContent->getModel();            
-            spdlog::default_logger()->info("Got model with {} buffers", model.buffers.size());
+            // spdlog::default_logger()->info("Got model with {} buffers", model.buffers.size());
         }
         // CesiumTileset_loadTile(cesiumTile);
     }

@@ -7,6 +7,8 @@
 
 #ifdef __cplusplus
 extern "C" {
+#else
+typedef int bool;    
 #endif
 
 #include <stdint.h>
@@ -27,6 +29,7 @@ typedef struct CesiumTilesetRenderableTiles {
     int32_t numTiles;
     const int32_t maxSize;
 } CesiumTilesetRenderableTiles;
+
 
 // This is copied verbatim from CesiumTileLoadState in Tile.h so we can generate the correct values with Dart ffigen
 enum CesiumTileLoadState {
@@ -136,6 +139,9 @@ double viewportWidth, double viewportHeight, double horizontalFov);
 // Update the view and get the number of tiles to render
 int CesiumTileset_updateView(CesiumTileset* tileset, const CesiumViewState viewState, float deltaTime);
 
+// Return the number of tiles kicked on the last update. This will remain valid until the next call to CesiumTileset_updateView.
+int32_t CesiumTileset_getTilesKicked(CesiumTileset* tileset);
+
 // Returns the tile to render at this frame at the given index. Returns NULL if index is out-of-bounds.
 CesiumTile* CesiumTileset_getTileToRenderThisFrame(CesiumTileset* tileset, int index);
 
@@ -152,9 +158,12 @@ void CesiumTileset_getRenderableTiles(CesiumTile* cesiumTile, CesiumTilesetRende
 
 int32_t CesiumTileset_getNumberOfTilesLoaded(CesiumTileset* tileset);
 
+
 CesiumTile* CesiumTileset_getRootTile(CesiumTileset* tileset);
 
-CesiumBoundingVolume CesiumTile_getBoundingVolume(CesiumTile* tile);
+CesiumBoundingVolume CesiumTile_getBoundingVolume(CesiumTile* tile, bool convertToOrientedBox);
+
+double CesiumTile_squaredDistanceToBoundingVolume(CesiumTile* oTile, CesiumViewState oViewState);
 
 double3 CesiumTile_getBoundingVolumeCenter(CesiumTile* tile);
 
