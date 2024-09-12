@@ -31,6 +31,11 @@ external ffi.Pointer<CesiumTileset> CesiumTileset_createFromIonAsset(
 );
 
 @ffi.Native<ffi.Int Function(ffi.Pointer<CesiumTileset>)>()
+external int CesiumTileset_getLastFrameNumber(
+  ffi.Pointer<CesiumTileset> tileset,
+);
+
+@ffi.Native<ffi.Int Function(ffi.Pointer<CesiumTileset>)>()
 external int CesiumTileset_getNumTilesLoaded(
   ffi.Pointer<CesiumTileset> tileset,
 );
@@ -136,11 +141,6 @@ external double4x4 CesiumTile_getTransform(
   ffi.Pointer<CesiumTile> tile,
 );
 
-@ffi.Native<ffi.Void Function(ffi.Pointer<CesiumTile>)>()
-external void CesiumTile_traverse(
-  ffi.Pointer<CesiumTile> tile,
-);
-
 @ffi.Native<ffi.Pointer<CesiumGltfModel> Function(ffi.Pointer<CesiumTile>)>()
 external ffi.Pointer<CesiumGltfModel> CesiumTile_getModel(
   ffi.Pointer<CesiumTile> tile,
@@ -149,6 +149,12 @@ external ffi.Pointer<CesiumGltfModel> CesiumTile_getModel(
 @ffi.Native<ffi.Int Function(ffi.Pointer<CesiumTile>)>()
 external int CesiumTile_hasModel(
   ffi.Pointer<CesiumTile> tile,
+);
+
+@ffi.Native<ffi.Int32 Function(ffi.Pointer<CesiumTile>, ffi.Int)>()
+external int CesiumTile_getTileSelectionState(
+  ffi.Pointer<CesiumTile> tile,
+  int frameNumber,
 );
 
 @ffi.Native<ffi.Int32 Function(ffi.Pointer<CesiumGltfModel>)>()
@@ -324,6 +330,15 @@ final class CesiumCartographic extends ffi.Struct {
 
   @ffi.Double()
   external double height;
+}
+
+abstract class CesiumTileSelectionState {
+  static const int CT_SS_NONE = 0;
+  static const int CT_SS_CULLED = 1;
+  static const int CT_SS_RENDERED = 2;
+  static const int CT_SS_REFINED = 3;
+  static const int CT_SS_RENDERED_AND_KICKED = 4;
+  static const int CT_SS_REFINED_AND_KICKED = 5;
 }
 
 typedef bool = ffi.Int;
