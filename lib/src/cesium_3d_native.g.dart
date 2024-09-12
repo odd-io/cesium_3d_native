@@ -73,10 +73,17 @@ external CesiumViewState CesiumTileset_createViewState(
   double horizontalFov,
 );
 
-@ffi.Native<ffi.Int Function(ffi.Pointer<CesiumTileset>, CesiumViewState)>()
+@ffi.Native<
+    ffi.Int Function(ffi.Pointer<CesiumTileset>, CesiumViewState, ffi.Float)>()
 external int CesiumTileset_updateView(
   ffi.Pointer<CesiumTileset> tileset,
   CesiumViewState viewState,
+  double deltaTime,
+);
+
+@ffi.Native<ffi.Int32 Function(ffi.Pointer<CesiumTileset>)>()
+external int CesiumTileset_getTilesKicked(
+  ffi.Pointer<CesiumTileset> tileset,
 );
 
 @ffi.Native<
@@ -106,11 +113,11 @@ external int CesiumTileset_getTileContentType(
 );
 
 @ffi.Native<
-    ffi.Void Function(ffi.Pointer<CesiumTile>,
-        ffi.Pointer<CesiumTilesetRenderContentTraversalResult>)>()
+    ffi.Void Function(
+        ffi.Pointer<CesiumTile>, ffi.Pointer<CesiumTilesetRenderableTiles>)>()
 external void CesiumTileset_getRenderableTiles(
   ffi.Pointer<CesiumTile> cesiumTile,
-  ffi.Pointer<CesiumTilesetRenderContentTraversalResult> out,
+  ffi.Pointer<CesiumTilesetRenderableTiles> out,
 );
 
 @ffi.Native<ffi.Int32 Function(ffi.Pointer<CesiumTileset>)>()
@@ -123,13 +130,25 @@ external ffi.Pointer<CesiumTile> CesiumTileset_getRootTile(
   ffi.Pointer<CesiumTileset> tileset,
 );
 
-@ffi.Native<CesiumBoundingVolume Function(ffi.Pointer<CesiumTile>)>()
+@ffi.Native<CesiumBoundingVolume Function(ffi.Pointer<CesiumTile>, bool)>()
 external CesiumBoundingVolume CesiumTile_getBoundingVolume(
   ffi.Pointer<CesiumTile> tile,
+  int convertToOrientedBox,
+);
+
+@ffi.Native<ffi.Double Function(ffi.Pointer<CesiumTile>, CesiumViewState)>()
+external double CesiumTile_squaredDistanceToBoundingVolume(
+  ffi.Pointer<CesiumTile> oTile,
+  CesiumViewState oViewState,
 );
 
 @ffi.Native<double3 Function(ffi.Pointer<CesiumTile>)>()
 external double3 CesiumTile_getBoundingVolumeCenter(
+  ffi.Pointer<CesiumTile> tile,
+);
+
+@ffi.Native<double4x4 Function(ffi.Pointer<CesiumTile>)>()
+external double4x4 CesiumTile_getTransform(
   ffi.Pointer<CesiumTile> tile,
 );
 
@@ -138,17 +157,58 @@ external void CesiumTile_traverse(
   ffi.Pointer<CesiumTile> tile,
 );
 
+@ffi.Native<ffi.Pointer<CesiumGltfModel> Function(ffi.Pointer<CesiumTile>)>()
+external ffi.Pointer<CesiumGltfModel> CesiumTile_getModel(
+  ffi.Pointer<CesiumTile> tile,
+);
+
+@ffi.Native<ffi.Int Function(ffi.Pointer<CesiumTile>)>()
+external int CesiumTile_hasModel(
+  ffi.Pointer<CesiumTile> tile,
+);
+
+@ffi.Native<ffi.Int32 Function(ffi.Pointer<CesiumGltfModel>)>()
+external int CesiumGltfModel_getMeshCount(
+  ffi.Pointer<CesiumGltfModel> model,
+);
+
+@ffi.Native<ffi.Int32 Function(ffi.Pointer<CesiumGltfModel>)>()
+external int CesiumGltfModel_getMaterialCount(
+  ffi.Pointer<CesiumGltfModel> model,
+);
+
+@ffi.Native<ffi.Int32 Function(ffi.Pointer<CesiumGltfModel>)>()
+external int CesiumGltfModel_getTextureCount(
+  ffi.Pointer<CesiumGltfModel> model,
+);
+
+@ffi.Native<
+    ffi.Pointer<ffi.Uint8> Function(
+        ffi.Pointer<CesiumGltfModel>, ffi.Pointer<ffi.Uint32>)>()
+external ffi.Pointer<ffi.Uint8> CesiumGltfModel_serialize(
+  ffi.Pointer<CesiumGltfModel> opaqueModel,
+  ffi.Pointer<ffi.Uint32> length,
+);
+
+@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Uint8>)>()
+external void CesiumGltfModel_free_serialized(
+  ffi.Pointer<ffi.Uint8> serialized,
+);
+
 final class CesiumTileset extends ffi.Opaque {}
 
 final class CesiumTile extends ffi.Opaque {}
 
-final class CesiumTilesetRenderContent extends ffi.Opaque {}
+final class CesiumGltfModel extends ffi.Opaque {}
 
-final class CesiumTilesetRenderContentTraversalResult extends ffi.Struct {
-  external ffi.Pointer<ffi.Pointer<CesiumTilesetRenderContent>> renderContent;
+final class CesiumTilesetRenderableTiles extends ffi.Struct {
+  external ffi.Pointer<ffi.Pointer<CesiumTile>> tiles;
 
   @ffi.Int32()
-  external int numRenderContent;
+  external int numTiles;
+
+  @ffi.Int32()
+  external int maxSize;
 }
 
 abstract class CesiumTileLoadState {
@@ -178,6 +238,20 @@ final class double3 extends ffi.Struct {
 
   @ffi.Double()
   external double z;
+}
+
+final class double4x4 extends ffi.Struct {
+  @ffi.Array.multi([4])
+  external ffi.Array<ffi.Double> col1;
+
+  @ffi.Array.multi([4])
+  external ffi.Array<ffi.Double> col2;
+
+  @ffi.Array.multi([4])
+  external ffi.Array<ffi.Double> col3;
+
+  @ffi.Array.multi([4])
+  external ffi.Array<ffi.Double> col4;
 }
 
 final class CesiumViewState extends ffi.Struct {
@@ -256,3 +330,6 @@ final class UnnamedUnion1 extends ffi.Union {
 
   external CesiumBoundingRegion region;
 }
+
+typedef bool = ffi.Int;
+typedef Dartbool = int;
