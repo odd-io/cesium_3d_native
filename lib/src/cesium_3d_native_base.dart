@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:ffi';
 import 'dart:typed_data';
 
+import 'package:cesium_3d_native/src/cartographic_position.dart';
 import 'package:cesium_3d_native/src/cesium_3d_native.g.dart' as g;
 import 'package:cesium_3d_native/src/cesium_bounding_volume.dart';
 import 'package:cesium_3d_native/src/cesium_view.dart';
@@ -74,46 +76,76 @@ class Cesium3D {
   ///
   /// Load a CesiumTileset from a CesiumIonAsset with the specified token.
   ///
-  CesiumTileset loadFromCesiumIon(int assetId, String accessToken) {
+  Future<CesiumTileset> loadFromCesiumIon(
+      int assetId, String accessToken) async {
     final ptr = accessToken.toNativeUtf8(allocator: calloc);
-    final tileset =
-        g.CesiumTileset_createFromIonAsset(assetId, ptr.cast<Char>());
+    final completer = Completer<void>();
+    final rootTileAvailable = NativeCallable<Void Function()>.listener(() {
+      completer.complete();
+    });
+    final tileset = g.CesiumTileset_createFromIonAsset(
+        assetId, ptr.cast<Char>(), rootTileAvailable.nativeFunction);
     calloc.free(ptr);
+    while (!completer.isCompleted) {
+      await Future.delayed(Duration(milliseconds: 100));
+      g.CesiumTileset_pumpAsyncQueue();
+    }
+
+    if (g.CesiumTileset_hasLoadError(tileset) == 1) {
+      g.CesiumTileset_getErrorMessage(tileset, _errorMessage);
+      throw Exception(_errorMessage.cast<Utf8>().toDartString());
+    }
+
     if (tileset == nullptr) {
       throw Exception("Failed to fetch tileset for Cesium Ion asset $assetId");
     }
-    _checkLoadError(tileset);
+
     return tileset;
   }
 
   ///
   /// Load a CesiumTileset from a url.
   ///
-  CesiumTileset loadFromUrl(String url) {
+  Future<CesiumTileset> loadFromUrl(String url) async {
     final ptr = url.toNativeUtf8(allocator: calloc);
-    final tileset = g.CesiumTileset_create(ptr.cast<Char>());
+    final completer = Completer<void>();
+    final rootTileAvailable = NativeCallable<Void Function()>.listener(() {
+      completer.complete();
+    });
+    final tileset = g.CesiumTileset_create(
+        ptr.cast<Char>(), rootTileAvailable.nativeFunction);
     calloc.free(ptr);
+    while (!completer.isCompleted) {
+      await Future.delayed(Duration(milliseconds: 100));
+      g.CesiumTileset_pumpAsyncQueue();
+    }
+
+    if (g.CesiumTileset_hasLoadError(tileset) == 1) {
+      g.CesiumTileset_getErrorMessage(tileset, _errorMessage);
+      throw Exception(_errorMessage.cast<Utf8>().toDartString());
+    }
     if (tileset == nullptr) {
       throw Exception("Failed to fetch tileset from url $url");
     }
-    _checkLoadError(tileset);
+
     return tileset;
   }
 
   g.CesiumViewState _toStruct(CesiumView view) {
-    return g.CesiumTileset_createViewState(
-        view.position.x,
-        view.position.y,
-        view.position.z,
-        view.direction.x,
-        view.direction.y,
-        view.direction.z,
-        view.up.x,
-        view.up.y,
-        view.up.z,
-        view.viewportWidth,
-        view.viewportHeight,
-        view.horizontalFov);
+    var struct = Struct.create<g.CesiumViewState>();
+    struct.viewportHeight = view.viewportHeight;
+    struct.viewportWidth = view.viewportWidth;
+    struct.position[0] = view.position[0];
+    struct.position[1] = view.position[1];
+    struct.position[2] = view.position[2];
+    struct.horizontalFov = view.horizontalFov;
+    struct.direction[0] = view.direction[0];
+    struct.direction[1] = view.direction[1];
+    struct.direction[2] = view.direction[2];
+    struct.up[0] = view.up[0];
+    struct.up[1] = view.up[1];
+    struct.up[2] = view.up[2];
+    return struct;
   }
 
   DateTime? _lastUpdate;
@@ -126,7 +158,9 @@ class Cesium3D {
     var delta = _lastUpdate == null
         ? 0.0
         : now.difference(_lastUpdate!).inMilliseconds / 1000.0;
-    int numTiles = g.CesiumTileset_updateView(tileset, _toStruct(view), delta);
+    final viewStruct = _toStruct(view);
+
+    int numTiles = g.CesiumTileset_updateView(tileset, viewStruct, delta);
     if (numTiles == -1) {
       throw Exception("Unknown error updating tileset view");
     }
@@ -134,6 +168,17 @@ class Cesium3D {
     return numTiles;
   }
 
+  ///
+  ///
+  ///
+  CartographicPosition getCartographicPosition(CesiumView cesiumView) {
+    final pos = g.CesiumTileset_getPositionCartographic(_toStruct(cesiumView));
+    return CartographicPosition(pos.latitude, pos.longitude, pos.height);
+  }
+
+  ///
+  ///
+  ///
   int getNumTilesKicked(CesiumTileset tileset) {
     return g.CesiumTileset_getTilesKicked(tileset);
   }
@@ -146,28 +191,11 @@ class Cesium3D {
   }
 
   ///
-  /// Throws an exception if the tileset encountered an error while loading.
-  /// If no exception is thrown, this does not guarantee that the tileset has
-  /// loaded successfully; it may still be pending.
-  ///
-  /// TODO - how to check successful load?
-  ///
-  void _checkLoadError(CesiumTileset tileset) {
-    if (g.CesiumTileset_hasLoadError(tileset) == 1) {
-      g.CesiumTileset_getErrorMessage(tileset, _errorMessage);
-      throw Exception(_errorMessage.cast<Utf8>().toDartString());
-    }
-  }
-
-  ///
   /// Fetches the root CesiumTile for the tileset.
+  /// If the tileset is not yet loaded, the return value will be null.
   ///
-  CesiumTile getRootTile(CesiumTileset tileset) {
-    final root = g.CesiumTileset_getRootTile(tileset);
-    if (root == nullptr) {
-      throw Exception("No root tile");
-    }
-    return root;
+  CesiumTile? getRootTile(CesiumTileset tileset) {
+    return g.CesiumTileset_getRootTile(tileset);
   }
 
   CesiumTileContentType getTileContentType(CesiumTile tile) {
@@ -223,58 +251,54 @@ class Cesium3D {
     );
   }
 
+  ///
+  /// Returns the bounding volume of [tile] as:
+  /// - CesiumBoundingVolumeOrientedBox
+  /// - CesiumBoundingVolumeSphere
+  /// - CesiumBoundingVolumeRegion [0]
+  ///
+  /// [0] when [convertRegionToOrientedBox] is true, all volumes of type [CesiumBoundingVolumeRegion] will be converted to [CesiumBoundingVolumeOrientedBox]
+  ///
+  CesiumBoundingVolume getBoundingVolume(CesiumTile tile,
+      {bool convertRegionToOrientedBox = false}) {
+    final volume = g.CesiumTile_getBoundingVolume(
+        tile, convertRegionToOrientedBox ? 1 : 0);
 
-///
-/// Returns the bounding volume of [tile] as:
-/// - CesiumBoundingVolumeOrientedBox
-/// - CesiumBoundingVolumeSphere
-/// - CesiumBoundingVolumeRegion [0]
-/// 
-/// [0] when [convertRegionToOrientedBox] is true, all volumes of type [CesiumBoundingVolumeRegion] will be converted to [CesiumBoundingVolumeOrientedBox]
-/// 
-CesiumBoundingVolume getBoundingVolume(CesiumTile tile, { bool convertRegionToOrientedBox=false}) {
-  final volume = g.CesiumTile_getBoundingVolume(tile, convertRegionToOrientedBox ? 1 : 0);
-
-  switch (volume.type) {
-    case g.CesiumBoundingVolumeType.CT_BV_ORIENTED_BOX:
-      return CesiumBoundingVolumeOrientedBox(
-          Matrix3.fromList([
-            volume.volume.orientedBox.halfAxes[0],
-            volume.volume.orientedBox.halfAxes[1],
-            volume.volume.orientedBox.halfAxes[2],
-            volume.volume.orientedBox.halfAxes[3],
-            volume.volume.orientedBox.halfAxes[4],
-            volume.volume.orientedBox.halfAxes[5],
-            volume.volume.orientedBox.halfAxes[6],
-            volume.volume.orientedBox.halfAxes[7],
-            volume.volume.orientedBox.halfAxes[8]
-          ]),
-          Vector3(
-              volume.volume.orientedBox.center[0],
-              volume.volume.orientedBox.center[1],
-              volume.volume.orientedBox.center[2]));
-    case g.CesiumBoundingVolumeType.CT_BV_REGION:
-      return CesiumBoundingVolumeRegion(
-        east: volume.volume.region.east,
-        west: volume.volume.region.west,
-        north: volume.volume.region.north,
-        south: volume.volume.region.south,
-        maxHeight: volume.volume.region.maximumHeight,
-        minHeight: volume.volume.region.minimumHeight
-      );
-    case g.CesiumBoundingVolumeType.CT_BV_SPHERE:
-      return CesiumBoundingVolumeSphere(
-        Vector3(
-          volume.volume.sphere.center[0],
-          volume.volume.sphere.center[1],
-          volume.volume.sphere.center[2]
-        ),
-        volume.volume.sphere.radius
-      );
-    default:
-      throw Exception("Unknown bounding volume type : ${volume.type}");
+    switch (volume.type) {
+      case g.CesiumBoundingVolumeType.CT_BV_ORIENTED_BOX:
+        return CesiumBoundingVolumeOrientedBox(
+            Matrix3.fromList([
+              volume.volume.orientedBox.halfAxes[0],
+              volume.volume.orientedBox.halfAxes[1],
+              volume.volume.orientedBox.halfAxes[2],
+              volume.volume.orientedBox.halfAxes[3],
+              volume.volume.orientedBox.halfAxes[4],
+              volume.volume.orientedBox.halfAxes[5],
+              volume.volume.orientedBox.halfAxes[6],
+              volume.volume.orientedBox.halfAxes[7],
+              volume.volume.orientedBox.halfAxes[8]
+            ]),
+            Vector3(
+                volume.volume.orientedBox.center[0],
+                volume.volume.orientedBox.center[1],
+                volume.volume.orientedBox.center[2]));
+      case g.CesiumBoundingVolumeType.CT_BV_REGION:
+        return CesiumBoundingVolumeRegion(
+            east: volume.volume.region.east,
+            west: volume.volume.region.west,
+            north: volume.volume.region.north,
+            south: volume.volume.region.south,
+            maxHeight: volume.volume.region.maximumHeight,
+            minHeight: volume.volume.region.minimumHeight);
+      case g.CesiumBoundingVolumeType.CT_BV_SPHERE:
+        return CesiumBoundingVolumeSphere(
+            Vector3(volume.volume.sphere.center[0],
+                volume.volume.sphere.center[1], volume.volume.sphere.center[2]),
+            volume.volume.sphere.radius);
+      default:
+        throw Exception("Unknown bounding volume type : ${volume.type}");
+    }
   }
-}
 
   ///
   ///

@@ -10,16 +10,24 @@ import 'dart:ffi' as ffi;
 @ffi.Native<ffi.Void Function()>()
 external void CesiumTileset_initialize();
 
-@ffi.Native<ffi.Pointer<CesiumTileset> Function(ffi.Pointer<ffi.Char>)>()
+@ffi.Native<ffi.Void Function()>()
+external void CesiumTileset_pumpAsyncQueue();
+
+@ffi.Native<
+    ffi.Pointer<CesiumTileset> Function(ffi.Pointer<ffi.Char>,
+        ffi.Pointer<ffi.NativeFunction<ffi.Void Function()>>)>()
 external ffi.Pointer<CesiumTileset> CesiumTileset_create(
   ffi.Pointer<ffi.Char> url,
+  ffi.Pointer<ffi.NativeFunction<ffi.Void Function()>> onRootTileAvailableEvent,
 );
 
 @ffi.Native<
-    ffi.Pointer<CesiumTileset> Function(ffi.Int64, ffi.Pointer<ffi.Char>)>()
+    ffi.Pointer<CesiumTileset> Function(ffi.Int64, ffi.Pointer<ffi.Char>,
+        ffi.Pointer<ffi.NativeFunction<ffi.Void Function()>>)>()
 external ffi.Pointer<CesiumTileset> CesiumTileset_createFromIonAsset(
   int assetId,
   ffi.Pointer<ffi.Char> accessToken,
+  ffi.Pointer<ffi.NativeFunction<ffi.Void Function()>> onRootTileAvailableEvent,
 );
 
 @ffi.Native<ffi.Int Function(ffi.Pointer<CesiumTileset>)>()
@@ -45,40 +53,16 @@ external void CesiumTileset_destroy(
 );
 
 @ffi.Native<
-    CesiumViewState Function(
-        ffi.Double,
-        ffi.Double,
-        ffi.Double,
-        ffi.Double,
-        ffi.Double,
-        ffi.Double,
-        ffi.Double,
-        ffi.Double,
-        ffi.Double,
-        ffi.Double,
-        ffi.Double,
-        ffi.Double)>()
-external CesiumViewState CesiumTileset_createViewState(
-  double positionX,
-  double positionY,
-  double positionZ,
-  double directionX,
-  double directionY,
-  double directionZ,
-  double upX,
-  double upY,
-  double upZ,
-  double viewportWidth,
-  double viewportHeight,
-  double horizontalFov,
-);
-
-@ffi.Native<
     ffi.Int Function(ffi.Pointer<CesiumTileset>, CesiumViewState, ffi.Float)>()
 external int CesiumTileset_updateView(
   ffi.Pointer<CesiumTileset> tileset,
   CesiumViewState viewState,
   double deltaTime,
+);
+
+@ffi.Native<CesiumCartographic Function(CesiumViewState)>()
+external CesiumCartographic CesiumTileset_getPositionCartographic(
+  CesiumViewState viewState,
 );
 
 @ffi.Native<ffi.Int32 Function(ffi.Pointer<CesiumTileset>)>()
@@ -329,6 +313,17 @@ final class UnnamedUnion1 extends ffi.Union {
   external CesiumOrientedBoundingBox orientedBox;
 
   external CesiumBoundingRegion region;
+}
+
+final class CesiumCartographic extends ffi.Struct {
+  @ffi.Double()
+  external double longitude;
+
+  @ffi.Double()
+  external double latitude;
+
+  @ffi.Double()
+  external double height;
 }
 
 typedef bool = ffi.Int;
