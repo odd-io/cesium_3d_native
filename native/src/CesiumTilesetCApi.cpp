@@ -356,7 +356,7 @@ double4x4 CesiumTile_getTransform(CesiumTile* cesiumTile) {
 }
 
 
-CesiumBoundingVolume CesiumTile_getBoundingVolume(CesiumTile* cesiumTile) {
+CesiumBoundingVolume CesiumTile_getBoundingVolume(CesiumTile* cesiumTile, bool convertToOrientedBox) {
     Cesium3DTilesSelection::Tile* tile = reinterpret_cast<Cesium3DTilesSelection::Tile*>(cesiumTile);
     const Cesium3DTilesSelection::BoundingVolume& bv = tile->getBoundingVolume();
     
@@ -378,9 +378,8 @@ CesiumBoundingVolume CesiumTile_getBoundingVolume(CesiumTile* cesiumTile) {
         result.volume.orientedBox.center[0] = obb.getCenter().x;
         result.volume.orientedBox.center[1] = obb.getCenter().y;
         result.volume.orientedBox.center[2] = obb.getCenter().z;
-        for(int i= 0; i < 3; i++) {
+        for(int i = 0; i < 3; i++) {
             auto axis = obb.getHalfAxes()[i];
-            // spdlog::default_logger()->info("Axis {} {} {} {}", axis[0], axis[1], axis[2], i % 3);
             for (int j = 0; j < 3; ++j) {
                 result.volume.orientedBox.halfAxes[(i*3)+j] = axis[j];
             }
@@ -389,24 +388,53 @@ CesiumBoundingVolume CesiumTile_getBoundingVolume(CesiumTile* cesiumTile) {
     else if (std::holds_alternative<CesiumGeospatial::BoundingRegion>(bv)) {
         spdlog::default_logger()->info("REGION");
         const auto& region = std::get<CesiumGeospatial::BoundingRegion>(bv);
-        result.type = CT_BV_REGION;
-        result.volume.region.west = region.getRectangle().getWest();
-        result.volume.region.south = region.getRectangle().getSouth();
-        result.volume.region.east = region.getRectangle().getEast();
-        result.volume.region.north = region.getRectangle().getNorth();
-        result.volume.region.minimumHeight = region.getMinimumHeight();
-        result.volume.region.maximumHeight = region.getMaximumHeight();
+        
+        if(convertToOrientedBox) {
+            auto obb = region.getBoundingBox();
+            result.type = CT_BV_ORIENTED_BOX;
+            result.volume.orientedBox.center[0] = obb.getCenter().x;
+            result.volume.orientedBox.center[1] = obb.getCenter().y;
+            result.volume.orientedBox.center[2] = obb.getCenter().z;
+            for(int i = 0; i < 3; i++) {
+                auto axis = obb.getHalfAxes()[i];
+                for (int j = 0; j < 3; ++j) {
+                    result.volume.orientedBox.halfAxes[(i*3)+j] = axis[j];
+                }
+            }
+        } else {
+            result.type = CT_BV_REGION;
+            result.volume.region.west = region.getRectangle().getWest();
+            result.volume.region.south = region.getRectangle().getSouth();
+            result.volume.region.east = region.getRectangle().getEast();
+            result.volume.region.north = region.getRectangle().getNorth();
+            result.volume.region.minimumHeight = region.getMinimumHeight();
+            result.volume.region.maximumHeight = region.getMaximumHeight();
+        }
     }
     else if (std::holds_alternative<CesiumGeospatial::BoundingRegionWithLooseFittingHeights>(bv)) {
         spdlog::default_logger()->info("REGION LOOSE");
         const auto& region = std::get<CesiumGeospatial::BoundingRegionWithLooseFittingHeights>(bv);
-        result.type = CT_BV_REGION;
-        result.volume.region.west = region.getBoundingRegion().getRectangle().getWest();
-        result.volume.region.south = region.getBoundingRegion().getRectangle().getSouth();
-        result.volume.region.east = region.getBoundingRegion().getRectangle().getEast();
-        result.volume.region.north = region.getBoundingRegion().getRectangle().getNorth();
-        result.volume.region.minimumHeight = region.getBoundingRegion().getMinimumHeight();
-        result.volume.region.maximumHeight = region.getBoundingRegion().getMaximumHeight();
+             if(convertToOrientedBox) {
+            auto obb = region.getBoundingRegion().getBoundingBox();
+            result.type = CT_BV_ORIENTED_BOX;
+            result.volume.orientedBox.center[0] = obb.getCenter().x;
+            result.volume.orientedBox.center[1] = obb.getCenter().y;
+            result.volume.orientedBox.center[2] = obb.getCenter().z;
+            for(int i = 0; i < 3; i++) {
+                auto axis = obb.getHalfAxes()[i];
+                for (int j = 0; j < 3; ++j) {
+                    result.volume.orientedBox.halfAxes[(i*3)+j] = axis[j];
+                }
+            }
+        } else {
+            result.type = CT_BV_REGION;
+            result.volume.region.west = region.getBoundingRegion().getRectangle().getWest();
+            result.volume.region.south = region.getBoundingRegion().getRectangle().getSouth();
+            result.volume.region.east = region.getBoundingRegion().getRectangle().getEast();
+            result.volume.region.north = region.getBoundingRegion().getRectangle().getNorth();
+            result.volume.region.minimumHeight = region.getBoundingRegion().getMinimumHeight();
+            result.volume.region.maximumHeight = region.getBoundingRegion().getMaximumHeight();
+        }
     }
     else {
         spdlog::default_logger()->info("OTHER");
