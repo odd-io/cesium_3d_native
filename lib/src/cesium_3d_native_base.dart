@@ -201,10 +201,6 @@ class Cesium3D {
     return CesiumTileLoadState.values[state + 2];
   }
 
-  void traverseChildren(CesiumTile tile) {
-    g.CesiumTile_traverse(tile);
-  }
-
   Matrix4 getTransform(CesiumTile tile) {
     var result = g.CesiumTile_getTransform(tile);
     return Matrix4(
@@ -227,41 +223,58 @@ class Cesium3D {
     );
   }
 
-  ///
-  ///
-  ///
-  CesiumBoundingVolume getBoundingVolume(CesiumTile tile) {
-    final volume = g.CesiumTile_getBoundingVolume(tile);
 
-    switch (volume.type) {
-      case g.CesiumBoundingVolumeType.CT_BV_ORIENTED_BOX:
-        return OrientedBox(
-            Matrix3.fromList([
-              volume.volume.orientedBox.halfAxes[0],
-              volume.volume.orientedBox.halfAxes[1],
-              volume.volume.orientedBox.halfAxes[2],
-              volume.volume.orientedBox.halfAxes[3],
-              volume.volume.orientedBox.halfAxes[4],
-              volume.volume.orientedBox.halfAxes[5],
-              volume.volume.orientedBox.halfAxes[6],
-              volume.volume.orientedBox.halfAxes[7],
-              volume.volume.orientedBox.halfAxes[8]
-            ]),
-            Vector3(
-                volume.volume.orientedBox.center[0],
-                volume.volume.orientedBox.center[1],
-                volume.volume.orientedBox.center[2]));
-      case g.CesiumBoundingVolumeType.CT_BV_REGION:
-       
-        final center = g.CesiumTile_getBoundingVolumeCenter(tile);
+///
+/// Returns the bounding volume of [tile] as:
+/// - CesiumBoundingVolumeOrientedBox
+/// - CesiumBoundingVolumeSphere
+/// - CesiumBoundingVolumeRegion [0]
+/// 
+/// [0] when [convertRegionToOrientedBox] is true, all volumes of type [CesiumBoundingVolumeRegion] will be converted to [CesiumBoundingVolumeOrientedBox]
+/// 
+CesiumBoundingVolume getBoundingVolume(CesiumTile tile, { bool convertRegionToOrientedBox=false}) {
+  final volume = g.CesiumTile_getBoundingVolume(tile, convertRegionToOrientedBox ? 1 : 0);
 
-      case g.CesiumBoundingVolumeType.CT_BV_SPHERE:
-        
-      default:
-        throw Exception("Unknown bounding volume type : ${volume.type}");
-    }
-    throw Exception("Unknown bounding volume type : ${volume.type}");
+  switch (volume.type) {
+    case g.CesiumBoundingVolumeType.CT_BV_ORIENTED_BOX:
+      return CesiumBoundingVolumeOrientedBox(
+          Matrix3.fromList([
+            volume.volume.orientedBox.halfAxes[0],
+            volume.volume.orientedBox.halfAxes[1],
+            volume.volume.orientedBox.halfAxes[2],
+            volume.volume.orientedBox.halfAxes[3],
+            volume.volume.orientedBox.halfAxes[4],
+            volume.volume.orientedBox.halfAxes[5],
+            volume.volume.orientedBox.halfAxes[6],
+            volume.volume.orientedBox.halfAxes[7],
+            volume.volume.orientedBox.halfAxes[8]
+          ]),
+          Vector3(
+              volume.volume.orientedBox.center[0],
+              volume.volume.orientedBox.center[1],
+              volume.volume.orientedBox.center[2]));
+    case g.CesiumBoundingVolumeType.CT_BV_REGION:
+      return CesiumBoundingVolumeRegion(
+        east: volume.volume.region.east,
+        west: volume.volume.region.west,
+        north: volume.volume.region.north,
+        south: volume.volume.region.south,
+        maxHeight: volume.volume.region.maximumHeight,
+        minHeight: volume.volume.region.minimumHeight
+      );
+    case g.CesiumBoundingVolumeType.CT_BV_SPHERE:
+      return CesiumBoundingVolumeSphere(
+        Vector3(
+          volume.volume.sphere.center[0],
+          volume.volume.sphere.center[1],
+          volume.volume.sphere.center[2]
+        ),
+        volume.volume.sphere.radius
+      );
+    default:
+      throw Exception("Unknown bounding volume type : ${volume.type}");
   }
+}
 
   ///
   ///
