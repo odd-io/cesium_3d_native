@@ -239,18 +239,6 @@ void CesiumTileset_destroy(CesiumTileset* tileset) {
     delete tileset;
 }
 
-CesiumViewState CesiumTileset_createViewState(double positionX, double positionY, double positionZ, double directionX, double directionY, double directionZ, double upX, double upY, double upZ,
-double viewportWidth, double viewportHeight, double horizontalFov) { 
-    return CesiumViewState { 
-        { positionX, positionY, positionZ },
-        { directionX, directionY, directionZ },
-        { upX, upY, upZ },
-        viewportWidth,
-        viewportHeight,
-        horizontalFov
-    };
-}
-
 int CesiumTileset_updateView(CesiumTileset* tileset, const CesiumViewState viewState, float deltaTime) {
     if (!tileset) return -1;
 
@@ -277,10 +265,30 @@ int CesiumTileset_updateView(CesiumTileset* tileset, const CesiumViewState viewS
     return static_cast<int>(tileset->lastUpdateResult.tilesToRenderThisFrame.size());
 }
 
+CesiumCartographic CesiumTileset_getPositionCartographic(CesiumViewState viewState) {
+    Cesium3DTilesSelection::ViewState cesiumViewState = Cesium3DTilesSelection::ViewState::create(
+        glm::dvec3(viewState.position[0], viewState.position[1], viewState.position[2]),
+        glm::dvec3(viewState.direction[0], viewState.direction[1], viewState.direction[2]),
+        glm::dvec3(viewState.up[0], viewState.up[1], viewState.up[2]),
+        glm::dvec2(viewState.viewportWidth, viewState.viewportHeight),
+        viewState.horizontalFov,
+        viewState.horizontalFov * viewState.viewportHeight / viewState.viewportWidth
+    );
+    CesiumCartographic position;
+
+    if(cesiumViewState.getPositionCartographic()) {
+        auto val = cesiumViewState.getPositionCartographic().value();
+        position.height = val.height;
+        position.longitude = val.longitude;
+        position.latitude = val.latitude;
+    }
+    return position;
+}
+
+
 int CesiumTileset_getTilesKicked(CesiumTileset* tileset) {
     return static_cast<int>(tileset->lastUpdateResult.tilesKicked);
 }
-
 
 int CesiumTileset_hasLoadError(CesiumTileset* tileset) {
     return tileset->loadError;

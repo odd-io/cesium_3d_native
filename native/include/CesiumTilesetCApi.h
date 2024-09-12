@@ -76,7 +76,6 @@ typedef struct {
     double horizontalFov;
 } CesiumViewState;
 
-
 typedef struct CesiumBoundingSphere {
     double center[3];
     double radius;
@@ -113,6 +112,13 @@ struct CesiumBoundingVolume {
 };
 typedef struct CesiumBoundingVolume CesiumBoundingVolume;
 
+struct CesiumCartographic { 
+  double longitude;
+  double latitude;
+  double height;
+};
+typedef struct CesiumCartographic CesiumCartographic; 
+
 // Initializes all bindings. Must be called before any other CesiumTileset_ function.
 void CesiumTileset_initialize();
 
@@ -135,11 +141,10 @@ void CesiumTileset_getErrorMessage(CesiumTileset* tileset, char* out);
 // Destroy a Tileset
 void CesiumTileset_destroy(CesiumTileset* tileset);
 
-CesiumViewState CesiumTileset_createViewState(double positionX, double positionY, double positionZ, double directionX, double directionY, double directionZ, double upX, double upY, double upZ,
-double viewportWidth, double viewportHeight, double horizontalFov);
-
 // Update the view and get the number of tiles to render
 int CesiumTileset_updateView(CesiumTileset* tileset, const CesiumViewState viewState, float deltaTime);
+
+CesiumCartographic CesiumTileset_getPositionCartographic(CesiumViewState viewState);
 
 // Return the number of tiles kicked on the last update. This will remain valid until the next call to CesiumTileset_updateView.
 int32_t CesiumTileset_getTilesKicked(CesiumTileset* tileset);
