@@ -576,28 +576,26 @@ double3 CesiumTile_getBoundingVolumeCenter(CesiumTile* cesiumTile) {
     return glmTodouble3(center);
 }
 
+int CesiumTileset_getLastFrameNumber(CesiumTileset* tileset) {
+    return tileset->lastUpdateResult.frameNumber;
+}
 
-
-void CesiumTile_traverse(CesiumTile* cesiumTile) {
-    auto tile = reinterpret_cast<Cesium3DTilesSelection::Tile*>(cesiumTile);
-    
-    if(CesiumTileset_getTileContentType(cesiumTile) == CT_TC_RENDER) {
-        spdlog::default_logger()->info("Loading render tile");
-        auto& content = tile->getContent();
-        auto renderContent = content.getRenderContent();
-
-        if(!renderContent) {
-            spdlog::default_logger()->info("No render content");
-        } else { 
-            auto model = renderContent->getModel();            
-            // spdlog::default_logger()->info("Got model with {} buffers", model.buffers.size());
-        }
-        // CesiumTileset_loadTile(cesiumTile);
-    }
-    
-    // Recursively process children
-    for (Tile& childTile : tile->getChildren()) {
-        CesiumTile_traverse((CesiumTile*) &childTile);
+CesiumTileSelectionState CesiumTile_getTileSelectionState(CesiumTile* tile, int frameNumber) {
+    Cesium3DTilesSelection::Tile* cesiumTile = reinterpret_cast<Cesium3DTilesSelection::Tile*>(tile);
+    auto state = cesiumTile->getLastSelectionState();
+    switch(state.getResult(frameNumber)) {
+        case TileSelectionState::Result::None:
+            return CT_SS_NONE;
+        case TileSelectionState::Result::Culled:
+            return CT_SS_CULLED;
+        case TileSelectionState::Result::Rendered:
+            return CT_SS_RENDERED;
+        case TileSelectionState::Result::Refined:
+            return CT_SS_REFINED;
+        case TileSelectionState::Result::RenderedAndKicked:
+            return CT_SS_RENDERED_AND_KICKED;
+        case TileSelectionState::Result::RefinedAndKicked:
+            return CT_SS_REFINED_AND_KICKED;
     }
 }
 

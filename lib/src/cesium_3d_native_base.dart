@@ -151,6 +151,13 @@ class Cesium3D {
   DateTime? _lastUpdate;
 
   ///
+  ///
+  ///
+  int getLastFrameNumber(CesiumTileset tileset) {
+    return g.CesiumTileset_getLastFrameNumber(tileset);
+  }
+
+  ///
   /// Update the tileset with the current view. Returns the number of tiles to render.
   ///
   int updateTilesetView(CesiumTileset tileset, CesiumView view) {

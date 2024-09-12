@@ -119,6 +119,16 @@ struct CesiumCartographic {
 };
 typedef struct CesiumCartographic CesiumCartographic; 
 
+enum CesiumTileSelectionState {
+    CT_SS_NONE,
+    CT_SS_CULLED,
+    CT_SS_RENDERED,
+    CT_SS_REFINED,
+    CT_SS_RENDERED_AND_KICKED,
+    CT_SS_REFINED_AND_KICKED
+};
+typedef enum CesiumTileSelectionState CesiumTileSelectionState;
+
 // Initializes all bindings. Must be called before any other CesiumTileset_ function.
 void CesiumTileset_initialize();
 
@@ -129,6 +139,8 @@ CesiumTileset* CesiumTileset_create(const char* url, void(*onRootTileAvailableEv
 
 // Create a Tileset from a Cesium ion asset. 
 CesiumTileset* CesiumTileset_createFromIonAsset(int64_t assetId, const char* accessToken, void(*onRootTileAvailableEvent)());
+
+int CesiumTileset_getLastFrameNumber(CesiumTileset* tileset);
 
 int CesiumTileset_getNumTilesLoaded(CesiumTileset* tileset);
 
@@ -165,7 +177,6 @@ void CesiumTileset_getRenderableTiles(CesiumTile* cesiumTile, CesiumTilesetRende
 
 int32_t CesiumTileset_getNumberOfTilesLoaded(CesiumTileset* tileset);
 
-
 CesiumTile* CesiumTileset_getRootTile(CesiumTileset* tileset);
 
 CesiumBoundingVolume CesiumTile_getBoundingVolume(CesiumTile* tile, bool convertToOrientedBox);
@@ -176,13 +187,13 @@ double3 CesiumTile_getBoundingVolumeCenter(CesiumTile* tile);
 
 double4x4 CesiumTile_getTransform(CesiumTile* tile);
 
-void CesiumTile_traverse(CesiumTile* tile);
-
 // Get a handle to the CesiumGltf::Model object for a given tile
 CesiumGltfModel* CesiumTile_getModel(CesiumTile* tile);
 
 // Check if a tile has a valid model
 int CesiumTile_hasModel(CesiumTile* tile);
+
+CesiumTileSelectionState CesiumTile_getTileSelectionState(CesiumTile* tile, int frameNumber);
 
 // Get the number of meshes in the model
 int32_t CesiumGltfModel_getMeshCount(CesiumGltfModel* model);
