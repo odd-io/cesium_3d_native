@@ -80,9 +80,12 @@ class Cesium3D {
       int assetId, String accessToken) async {
     final ptr = accessToken.toNativeUtf8(allocator: calloc);
     final completer = Completer<void>();
-    final rootTileAvailable = NativeCallable<Void Function()>.listener(() {
+    late NativeCallable<Void Function()> rootTileAvailable;
+    rootTileAvailable = NativeCallable<Void Function()>.listener(() {
       completer.complete();
+      rootTileAvailable.close();
     });
+
     final tileset = g.CesiumTileset_createFromIonAsset(
         assetId, ptr.cast<Char>(), rootTileAvailable.nativeFunction);
     calloc.free(ptr);
@@ -109,8 +112,10 @@ class Cesium3D {
   Future<CesiumTileset> loadFromUrl(String url) async {
     final ptr = url.toNativeUtf8(allocator: calloc);
     final completer = Completer<void>();
-    final rootTileAvailable = NativeCallable<Void Function()>.listener(() {
+    late NativeCallable<Void Function()> rootTileAvailable;
+    rootTileAvailable = NativeCallable<Void Function()>.listener(() {
       completer.complete();
+      rootTileAvailable.close();
     });
     final tileset = g.CesiumTileset_create(
         ptr.cast<Char>(), rootTileAvailable.nativeFunction);
