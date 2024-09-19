@@ -24,11 +24,11 @@ typedef struct CesiumTile CesiumTile; //  Cesium3DTilesSelection::Tile
 typedef struct CesiumGltfModel CesiumGltfModel; //  CesiumGltf::Model
 
 // Holds pointers to all current tiles with render content.
-typedef struct CesiumTilesetRenderableTiles {
-    const CesiumTile ** const tiles;
+struct CesiumTilesetRenderableTiles {
+    const CesiumTile* tiles[1024];
     int32_t numTiles;
-    const int32_t maxSize;
-} CesiumTilesetRenderableTiles;
+};
+typedef struct CesiumTilesetRenderableTiles CesiumTilesetRenderableTiles;
 
 
 // This is copied verbatim from CesiumTileLoadState in Tile.h so we can generate the correct values with Dart ffigen
@@ -140,6 +140,8 @@ CesiumTileset* CesiumTileset_create(const char* url, void(*onRootTileAvailableEv
 // Create a Tileset from a Cesium ion asset. 
 CesiumTileset* CesiumTileset_createFromIonAsset(int64_t assetId, const char* accessToken, void(*onRootTileAvailableEvent)());
 
+float CesiumTileset_computeLoadProgress(CesiumTileset* tileset);
+
 int CesiumTileset_getLastFrameNumber(CesiumTileset* tileset);
 
 int CesiumTileset_getNumTilesLoaded(CesiumTileset* tileset);
@@ -150,8 +152,8 @@ int CesiumTileset_hasLoadError(CesiumTileset* tileset);
 // Retrieve the error message encountered when loading this tileset. Returns NULL if none.
 void CesiumTileset_getErrorMessage(CesiumTileset* tileset, char* out);
 
-// Destroy a Tileset
-void CesiumTileset_destroy(CesiumTileset* tileset);
+// Destroy a Tileset. This is an asynchronous operation; pass a callback as onTileDestroyEvent to be notified when destruction is complete.
+void CesiumTileset_destroy(CesiumTileset* tileset, void(*onTileDestroyEvent)());
 
 // Update the view and get the number of tiles to render
 int CesiumTileset_updateView(CesiumTileset* tileset, const CesiumViewState viewState, float deltaTime);
@@ -173,7 +175,7 @@ CesiumTileLoadState CesiumTileset_getTileLoadState(CesiumTile* tile);
 // Get the type of content for the tile at the given index
 CesiumTileContentType CesiumTileset_getTileContentType(CesiumTile* tile);
 
-void CesiumTileset_getRenderableTiles(CesiumTile* cesiumTile, CesiumTilesetRenderableTiles* const out);
+CesiumTilesetRenderableTiles CesiumTileset_getRenderableTiles(CesiumTile* cesiumTile);
 
 int32_t CesiumTileset_getNumberOfTilesLoaded(CesiumTileset* tileset);
 
@@ -189,6 +191,8 @@ double4x4 CesiumTile_getTransform(CesiumTile* tile);
 
 // Get a handle to the CesiumGltf::Model object for a given tile
 CesiumGltfModel* CesiumTile_getModel(CesiumTile* tile);
+
+double4x4 CesiumGltfModel_getTransform(CesiumGltfModel* model);
 
 // Check if a tile has a valid model
 int CesiumTile_hasModel(CesiumTile* tile);
@@ -207,7 +211,6 @@ int32_t CesiumGltfModel_getTextureCount(CesiumGltfModel* model);
 uint8_t* CesiumGltfModel_serialize(CesiumGltfModel* opaqueModel, uint32_t* length);
 
 void CesiumGltfModel_free_serialized(uint8_t* serialized);
-
 
 #ifdef __cplusplus
 }
