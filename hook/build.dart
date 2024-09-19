@@ -98,10 +98,12 @@ Future<Directory> getLibDir(BuildConfig config, Logger logger) async {
 
   var mode = "release";
 
-  var libDir = Directory(
-      "${config.packageRoot.toFilePath()}/.dart_tool/cesium_3d_native/lib/$_cesiumNativeVersion/$platform/$mode/${config.targetArchitecture!}");
+  final targetArch = config.targetArchitecture?.toString() ?? "arm64";
 
-  final url = _getLibraryUrl(platform, mode, config.targetArchitecture.toString());
+  var libDir = Directory(
+      "${config.packageRoot.toFilePath()}/.dart_tool/cesium_3d_native/lib/$_cesiumNativeVersion/$platform/$mode/${targetArch}");
+
+  final url = _getLibraryUrl(platform, mode, targetArch);
 
   final filename = url.split("/").last;
 
