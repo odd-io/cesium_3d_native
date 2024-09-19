@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:ffi';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:cesium_3d_native/src/cartographic_position.dart';
@@ -9,7 +10,12 @@ import 'package:cesium_3d_native/src/cesium_view.dart';
 import 'package:ffi/ffi.dart';
 import 'package:vector_math/vector_math_64.dart';
 
-typedef CesiumTileset = Pointer<g.CesiumTileset>;
+class CesiumTileset {
+  final Pointer<g.CesiumTileset> _ptr;
+  DateTime? _lastUpdate;
+  CesiumTileset(this._ptr);
+}
+
 typedef CesiumTile = Pointer<g.CesiumTile>;
 typedef CesiumGltfModel = Pointer<g.CesiumGltfModel>;
 
@@ -44,6 +50,15 @@ enum CesiumTileLoadState {
   Failed
 }
 
+enum CesiumTileSelectionState {
+  None,
+  Culled,
+  Rendered,
+  Refined,
+  RenderedAndKicked,
+  RefinedAndKicked
+}
+
 class Cesium3D {
   // preallocate memory
 
@@ -55,7 +70,6 @@ class Cesium3D {
 
   // render content
   static const int _maxRenderContent = 1024;
-  static late Pointer<g.CesiumTilesetRenderableTiles> _traversalResult;
 
   static Cesium3D? _instance;
   static Cesium3D get instance {
@@ -67,10 +81,6 @@ class Cesium3D {
     g.CesiumTileset_initialize();
     _errorMessage = calloc<Char>(256);
     _length = calloc<Uint32>(1);
-    _traversalResult = calloc<g.CesiumTilesetRenderableTiles>(1);
-    _traversalResult.ref.maxSize = _maxRenderContent;
-    _traversalResult.ref.tiles =
-        calloc<Pointer<g.CesiumTile>>(_maxRenderContent);
   }
 
   ///
@@ -86,24 +96,32 @@ class Cesium3D {
       rootTileAvailable.close();
     });
 
-    final tileset = g.CesiumTileset_createFromIonAsset(
+    final tilesetPtr = g.CesiumTileset_createFromIonAsset(
         assetId, ptr.cast<Char>(), rootTileAvailable.nativeFunction);
     calloc.free(ptr);
+
+    int iters = 0;
+
     while (!completer.isCompleted) {
       await Future.delayed(Duration(milliseconds: 100));
       g.CesiumTileset_pumpAsyncQueue();
+      iters++;
+      if (iters > 100) {
+        throw Exception(
+            "Failed to load tileset within 10 seconds. This suggests an error");
+      }
     }
 
-    if (g.CesiumTileset_hasLoadError(tileset) == 1) {
-      g.CesiumTileset_getErrorMessage(tileset, _errorMessage);
+    if (g.CesiumTileset_hasLoadError(tilesetPtr) == 1) {
+      g.CesiumTileset_getErrorMessage(tilesetPtr, _errorMessage);
       throw Exception(_errorMessage.cast<Utf8>().toDartString());
     }
 
-    if (tileset == nullptr) {
+    if (tilesetPtr == nullptr) {
       throw Exception("Failed to fetch tileset for Cesium Ion asset $assetId");
     }
 
-    return tileset;
+    return CesiumTileset(tilesetPtr);
   }
 
   ///
@@ -117,7 +135,7 @@ class Cesium3D {
       completer.complete();
       rootTileAvailable.close();
     });
-    final tileset = g.CesiumTileset_create(
+    final tilesetPtr = g.CesiumTileset_create(
         ptr.cast<Char>(), rootTileAvailable.nativeFunction);
     calloc.free(ptr);
     while (!completer.isCompleted) {
@@ -125,15 +143,15 @@ class Cesium3D {
       g.CesiumTileset_pumpAsyncQueue();
     }
 
-    if (g.CesiumTileset_hasLoadError(tileset) == 1) {
-      g.CesiumTileset_getErrorMessage(tileset, _errorMessage);
+    if (g.CesiumTileset_hasLoadError(tilesetPtr) == 1) {
+      g.CesiumTileset_getErrorMessage(tilesetPtr, _errorMessage);
       throw Exception(_errorMessage.cast<Utf8>().toDartString());
     }
-    if (tileset == nullptr) {
+    if (tilesetPtr == nullptr) {
       throw Exception("Failed to fetch tileset from url $url");
     }
 
-    return tileset;
+    return CesiumTileset(tilesetPtr);
   }
 
   g.CesiumViewState _toStruct(CesiumView view) {
@@ -153,13 +171,11 @@ class Cesium3D {
     return struct;
   }
 
-  DateTime? _lastUpdate;
-
   ///
   ///
   ///
   int getLastFrameNumber(CesiumTileset tileset) {
-    return g.CesiumTileset_getLastFrameNumber(tileset);
+    return g.CesiumTileset_getLastFrameNumber(tileset._ptr);
   }
 
   ///
@@ -167,16 +183,16 @@ class Cesium3D {
   ///
   int updateTilesetView(CesiumTileset tileset, CesiumView view) {
     var now = DateTime.now();
-    var delta = _lastUpdate == null
+    var delta = tileset._lastUpdate == null
         ? 0.0
-        : now.difference(_lastUpdate!).inMilliseconds / 1000.0;
+        : now.difference(tileset._lastUpdate!).inMilliseconds / 1000.0;
     final viewStruct = _toStruct(view);
 
-    int numTiles = g.CesiumTileset_updateView(tileset, viewStruct, delta);
+    int numTiles = g.CesiumTileset_updateView(tileset._ptr, viewStruct, delta);
     if (numTiles == -1) {
       throw Exception("Unknown error updating tileset view");
     }
-    _lastUpdate = now;
+    tileset._lastUpdate = now;
     return numTiles;
   }
 
@@ -192,14 +208,14 @@ class Cesium3D {
   ///
   ///
   int getNumTilesKicked(CesiumTileset tileset) {
-    return g.CesiumTileset_getTilesKicked(tileset);
+    return g.CesiumTileset_getTilesKicked(tileset._ptr);
   }
 
   ///
   ///
   ///
   int getNumTilesLoaded(CesiumTileset tileset) {
-    return g.CesiumTileset_getNumTilesLoaded(tileset);
+    return g.CesiumTileset_getNumTilesLoaded(tileset._ptr);
   }
 
   ///
@@ -207,22 +223,32 @@ class Cesium3D {
   /// If the tileset is not yet loaded, the return value will be null.
   ///
   CesiumTile? getRootTile(CesiumTileset tileset) {
-    return g.CesiumTileset_getRootTile(tileset);
+    return g.CesiumTileset_getRootTile(tileset._ptr);
   }
 
+  ///
+  /// Gets the content type for the given type.
+  ///
   CesiumTileContentType getTileContentType(CesiumTile tile) {
     final contentType = g.CesiumTileset_getTileContentType(tile);
     return CesiumTileContentType.values[contentType];
   }
 
   ///
+  /// Gets the load progress for the given tileset.
+  ///
+  double computeLoadProgess(CesiumTileset tileset) {
+    return g.CesiumTileset_computeLoadProgress(tileset._ptr);
+  }
+
+  ///
   /// Traverses this tile and its children to fetch all render content.
   ///
   List<CesiumTile> getRenderableTiles(CesiumTile tile) {
-    g.CesiumTileset_getRenderableTiles(tile, _traversalResult);
+    final result = g.CesiumTileset_getRenderableTiles(tile);
 
-    final renderableTiles = List<CesiumTile>.generate(
-        _traversalResult.ref.numTiles, (i) => _traversalResult.ref.tiles[i]);
+    final renderableTiles =
+        List<CesiumTile>.generate(result.numTiles, (i) => result.tiles[i]);
     return renderableTiles;
   }
 
@@ -230,7 +256,7 @@ class Cesium3D {
   // [index] must be less than the result of the last [updateTilesetView]
   // (and will only be valid until the next call to [updateTilesetView]).
   CesiumTile getTileToRenderThisFrame(CesiumTileset tileset, int index) {
-    return g.CesiumTileset_getTileToRenderThisFrame(tileset, index);
+    return g.CesiumTileset_getTileToRenderThisFrame(tileset._ptr, index);
   }
 
   ///
@@ -333,9 +359,61 @@ class Cesium3D {
     return model;
   }
 
+  Matrix4 getGltfTransform(CesiumGltfModel model) {
+    var result = g.CesiumGltfModel_getTransform(model);
+    return Matrix4(
+      result.col1[0],
+      result.col1[1],
+      result.col1[2],
+      result.col1[3],
+      result.col2[0],
+      result.col2[1],
+      result.col2[2],
+      result.col2[3],
+      result.col3[0],
+      result.col3[1],
+      result.col3[2],
+      result.col3[3],
+      result.col4[0],
+      result.col4[1],
+      result.col4[2],
+      result.col4[3],
+    );
+  }
+
   SerializedCesiumGltfModel serializeGltfData(CesiumGltfModel model) {
     var data = g.CesiumGltfModel_serialize(model, _length);
 
     return SerializedCesiumGltfModel(data, _length.value);
+  }
+
+  CesiumTileSelectionState getSelectionState(
+      CesiumTileset tileset, CesiumTile tile) {
+    var state =
+        g.CesiumTile_getTileSelectionState(tile, getLastFrameNumber(tileset));
+    return CesiumTileSelectionState.values[state];
+  }
+
+  Future destroy(CesiumTileset tileset) async {
+    final completer = Completer<void>();
+    late NativeCallable<Void Function()> onDestroy;
+    onDestroy = NativeCallable<Void Function()>.listener(() {
+      completer.complete();
+      onDestroy.close();
+    });
+
+    g.CesiumTileset_destroy(tileset._ptr, onDestroy.nativeFunction);
+
+    int iters = 0;
+
+    while (!completer.isCompleted) {
+      await Future.delayed(Duration(milliseconds: 100));
+      g.CesiumTileset_pumpAsyncQueue();
+      iters++;
+      if (iters > 100) {
+        throw Exception(
+            "Failed to destroy tile within 10 seconds. This suggests an error");
+      }
+    }
   }
 }
