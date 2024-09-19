@@ -90,8 +90,9 @@ public:
             if (!curl) {
                 throw std::runtime_error("Failed to initialize CURL");
             }
-
+            curl_easy_setopt(curl, CURLOPT_FRESH_CONNECT, 1L);
             // curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+            curl_easy_setopt(curl, CURLOPT_SSL_SESSIONID_CACHE, 0L);
             curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
             curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
             curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
@@ -125,10 +126,10 @@ public:
             
             CURLcode res = curl_easy_perform(curl);
 
-
-
             if (res != CURLE_OK) {
                 std::cout << "CURL Failed!" << std::endl;
+                std::cout << "Error: " << curl_easy_strerror(res) << std::endl;
+                std::cout << "Response body: " << std::string(responseData.begin(), responseData.end()) << std::endl;
                 curl_easy_cleanup(curl);
                 curl_slist_free_all(chunk);
                 throw std::runtime_error(curl_easy_strerror(res));
