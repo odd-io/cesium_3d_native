@@ -10,6 +10,7 @@
 #include <CesiumGeometry/OrientedBoundingBox.h>
 #include <CesiumGeospatial/BoundingRegion.h>
 #include <CesiumGltfWriter/GltfWriter.h>
+#include <CesiumGltfContent/GltfUtilities.h>
 
 #include <memory>
 #include <optional>
@@ -31,14 +32,14 @@
 #include <string>
 #include <cstring>
 
+#include <glm/ext/matrix_transform.hpp>
+
 
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/async.h>
 #include <spdlog/sinks/basic_file_sink.h>
 
-
-extern "C" {
 
 using namespace Cesium3DTilesSelection;
 
@@ -48,6 +49,27 @@ using namespace Cesium3DTilesSelection;
 #include <thread>
 #include <atomic>
 #include <functional>
+
+std::string base64_encode(const unsigned char* input, int length) {
+    BIO *bio, *b64;
+    BUF_MEM *bufferPtr;
+
+    b64 = BIO_new(BIO_f_base64());
+    bio = BIO_new(BIO_s_mem());
+    bio = BIO_push(b64, bio);
+
+    BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL); // Ignore newlines - write everything in one line
+    BIO_write(bio, input, length);
+    BIO_flush(bio);
+    BIO_get_mem_ptr(bio, &bufferPtr);
+    BIO_set_close(bio, BIO_NOCLOSE);
+    BIO_free_all(bio);
+
+    std::string output(bufferPtr->data, bufferPtr->length);
+    BUF_MEM_free(bufferPtr);
+
+    return output;
+}
 
 class SimpleTaskProcessor : public CesiumAsync::ITaskProcessor {
 public:
@@ -96,12 +118,7 @@ private:
     std::atomic<bool> running;
 };
 
-// class SimpleTaskProcessor : public CesiumAsync::ITaskProcessor {
-// public:
-//   virtual void startTask(std::function<void()> f) override { 
-//     f(); 
-//   }
-// };
+extern "C" {
 
 struct CesiumTileset {
     std::unique_ptr<Cesium3DTilesSelection::Tileset> tileset;
@@ -120,12 +137,15 @@ double3 glmTodouble3(const glm::dvec3& vec) {
 // This flag is set to true after the first call to CesiumTileset_initialize(); all subsequent calls will be ignored.
 static bool _initialized = false;
 static CesiumAsync::AsyncSystem asyncSystem { nullptr };
+static std::shared_ptr<Cesium3DTilesSelection::IPrepareRendererResources> pResourcePreparer;
 void CesiumTileset_initialize() {
     if(_initialized) {
         return;
     }
  
     asyncSystem = CesiumAsync::AsyncSystem {  std::make_shared<SimpleTaskProcessor>() };
+
+    pResourcePreparer = std::dynamic_pointer_cast<Cesium3DTilesSelection::IPrepareRendererResources>(std::make_shared<SimplePrepareRendererResource>());
 
     auto console = spdlog::stdout_color_mt("cesium_logger");
     spdlog::set_default_logger(console);
@@ -146,7 +166,6 @@ void CesiumTileset_initialize() {
 
 CesiumTileset* CesiumTileset_create(const char* url, void(*onRootTileAvailableEvent)()) {
     auto pAssetAccessor = std::dynamic_pointer_cast<CesiumAsync::IAssetAccessor>(std::make_shared<CurlAssetAccessor>());
-    auto pResourcePreparer = std::dynamic_pointer_cast<Cesium3DTilesSelection::IPrepareRendererResources>(std::make_shared<SimplePrepareRendererResource>());
     auto pMockedCreditSystem = std::make_shared<CesiumUtility::CreditSystem>();
 
     Cesium3DTilesSelection::TilesetExternals externals {
@@ -182,7 +201,7 @@ CesiumTileset* CesiumTileset_create(const char* url, void(*onRootTileAvailableEv
 
 CesiumTileset* CesiumTileset_createFromIonAsset(int64_t assetId, const char* accessToken, void(*onRootTileAvailableEvent)()) {
     auto pAssetAccessor = std::dynamic_pointer_cast<CesiumAsync::IAssetAccessor>(std::make_shared<CurlAssetAccessor>(accessToken));
-    auto pResourcePreparer = std::dynamic_pointer_cast<Cesium3DTilesSelection::IPrepareRendererResources>(std::make_shared<SimplePrepareRendererResource>());
+
     auto pMockedCreditSystem = std::make_shared<CesiumUtility::CreditSystem>();
 
     Cesium3DTilesSelection::TilesetExternals externals {
@@ -190,8 +209,6 @@ CesiumTileset* CesiumTileset_createFromIonAsset(int64_t assetId, const char* acc
       pResourcePreparer,
       asyncSystem,
       pMockedCreditSystem};
-    externals.pAssetAccessor = pAssetAccessor;
-    externals.pPrepareRendererResources = pResourcePreparer;
 
     TilesetOptions options;
 
@@ -235,9 +252,15 @@ void CesiumTileset_getErrorMessage(CesiumTileset* tileset, char* out) {
     }
 }
 
-void CesiumTileset_destroy(CesiumTileset* tileset) {
+void CesiumTileset_destroy(CesiumTileset* tileset, void(*onTileDestroyEvent)()) {        
+    tileset->tileset->getAsyncDestructionCompleteEvent().thenInMainThread([=]() { 
+        onTileDestroyEvent();
+    });
+    asyncSystem.dispatchMainThreadTasks();
+    // Delete the CesiumTileset object
     delete tileset;
 }
+
 
 int CesiumTileset_updateView(CesiumTileset* tileset, const CesiumViewState viewState, float deltaTime) {
     if (!tileset) return -1;
@@ -252,18 +275,29 @@ int CesiumTileset_updateView(CesiumTileset* tileset, const CesiumViewState viewS
     );
 
     tileset->lastUpdateResult = tileset->tileset->updateView({cesiumViewState}, deltaTime);
-    // spdlog::default_logger()->info("load progress {}", tileset->tileset->computeLoadProgress());
-    // spdlog::default_logger()->info("queue len {}", tileset->lastUpdateResult.workerThreadTileLoadQueueLength);
-    // spdlog::default_logger()->info("mainThreadTileLoadQueueLength {}", tileset->lastUpdateResult.mainThreadTileLoadQueueLength);
-    // spdlog::default_logger()->info("tilesVisited {}", tileset->lastUpdateResult.tilesVisited);
-    // spdlog::default_logger()->info("culledTilesVisited {}", tileset->lastUpdateResult.culledTilesVisited);
-    // spdlog::default_logger()->info("tilesCulled {}", tileset->lastUpdateResult.tilesCulled);
-    // spdlog::default_logger()->info("tilesOccluded {}", tileset->lastUpdateResult.tilesOccluded);
-    // spdlog::default_logger()->info("tilesKicked {}", tileset->lastUpdateResult.tilesKicked);
-    // spdlog::default_logger()->info("tilesWaitingForOcclusionResults {}", tileset->lastUpdateResult.tilesWaitingForOcclusionResults);
+    
   
     return static_cast<int>(tileset->lastUpdateResult.tilesToRenderThisFrame.size());
 }
+
+float CesiumTileset_computeLoadProgress(CesiumTileset* tileset) {
+    spdlog::default_logger()->info("queue len {}", tileset->lastUpdateResult.workerThreadTileLoadQueueLength);
+    spdlog::default_logger()->info("tilesToRenderThisFrame {}", tileset->lastUpdateResult.tilesToRenderThisFrame.size());
+    spdlog::default_logger()->info("tilesFadingOut {}", tileset->lastUpdateResult.tilesFadingOut.size());
+    spdlog::default_logger()->info("workerThreadTileLoadQueueLength {}", tileset->lastUpdateResult.workerThreadTileLoadQueueLength);
+    
+    spdlog::default_logger()->info("mainThreadTileLoadQueueLength {}", tileset->lastUpdateResult.mainThreadTileLoadQueueLength);
+    spdlog::default_logger()->info("tilesVisited {}", tileset->lastUpdateResult.tilesVisited);
+    spdlog::default_logger()->info("culledTilesVisited {}", tileset->lastUpdateResult.culledTilesVisited);
+    spdlog::default_logger()->info("tilesCulled {}", tileset->lastUpdateResult.tilesCulled);
+    spdlog::default_logger()->info("tilesOccluded {}", tileset->lastUpdateResult.tilesOccluded);
+    spdlog::default_logger()->info("tilesKicked {}", tileset->lastUpdateResult.tilesKicked);
+    spdlog::default_logger()->info("tilesWaitingForOcclusionResults {}", tileset->lastUpdateResult.tilesWaitingForOcclusionResults);
+    spdlog::default_logger()->info("maxDepthVisited {}", tileset->lastUpdateResult.maxDepthVisited);
+    
+    return tileset->tileset->computeLoadProgress();
+}
+
 
 CesiumCartographic CesiumTileset_getPositionCartographic(CesiumViewState viewState) {
     Cesium3DTilesSelection::ViewState cesiumViewState = Cesium3DTilesSelection::ViewState::create(
@@ -275,7 +309,6 @@ CesiumCartographic CesiumTileset_getPositionCartographic(CesiumViewState viewSta
         viewState.horizontalFov * viewState.viewportHeight / viewState.viewportWidth
     );
     CesiumCartographic position;
-
     if(cesiumViewState.getPositionCartographic()) {
         auto val = cesiumViewState.getPositionCartographic().value();
         position.height = val.height;
@@ -319,7 +352,6 @@ void CesiumTileset_loadTile(CesiumTile* cesiumTile) {
     }
 
     auto pAssetAccessor = std::dynamic_pointer_cast<CesiumAsync::IAssetAccessor>(std::make_shared<CurlAssetAccessor>(""));
-    auto pResourcePreparer = std::dynamic_pointer_cast<Cesium3DTilesSelection::IPrepareRendererResources>(std::make_shared<SimplePrepareRendererResource>());
 
     auto pMockedCreditSystem = std::make_shared<CesiumUtility::CreditSystem>();
         
@@ -392,7 +424,8 @@ static void recurse(Tile* tile, const std::function<void(Tile* const)>& visitor)
     }
 }
 
-void CesiumTileset_getRenderableTiles(CesiumTile* cesiumTile, CesiumTilesetRenderableTiles* const out) {
+CesiumTilesetRenderableTiles CesiumTileset_getRenderableTiles(CesiumTile* cesiumTile) {
+    
     std::set<const Tile* const> content;
     auto* tile = reinterpret_cast<Tile*>(cesiumTile);
     const auto& visitor = [&](Tile* const tile) {
@@ -401,15 +434,14 @@ void CesiumTileset_getRenderableTiles(CesiumTile* cesiumTile, CesiumTilesetRende
         }
     };
     recurse(tile, visitor);
-    out->numTiles = (int32_t)content.size();
-    if(out->numTiles > out->maxSize) {
-        out->numTiles = out->maxSize;
-    }
+    CesiumTilesetRenderableTiles out;
+    out.numTiles = (int32_t)content.size();
     int i = 0;
     for(auto it =content.begin(); it != content.end(); it++) {
-        out->tiles[i] = reinterpret_cast<const CesiumTile* const>(*it);
+        out.tiles[i] = reinterpret_cast<const CesiumTile* const>(*it);
         i++;
     }
+    return out;
 }
 
 CesiumTile* CesiumTileset_getRootTile(CesiumTileset* tileset) {
@@ -453,7 +485,6 @@ CesiumBoundingVolume CesiumTile_getBoundingVolume(CesiumTile* cesiumTile, bool c
     CesiumBoundingVolume result;
 
     if (std::holds_alternative<CesiumGeometry::BoundingSphere>(bv)) {
-        spdlog::default_logger()->info("SPHERE");
         const auto& sphere = std::get<CesiumGeometry::BoundingSphere>(bv);
         result.type = CT_BV_SPHERE;
         result.volume.sphere.center[0] = sphere.getCenter().x;
@@ -462,7 +493,6 @@ CesiumBoundingVolume CesiumTile_getBoundingVolume(CesiumTile* cesiumTile, bool c
         result.volume.sphere.radius = sphere.getRadius();
     }
     else if (std::holds_alternative<CesiumGeometry::OrientedBoundingBox>(bv)) {
-        spdlog::default_logger()->info("OBB");
         const auto& obb = std::get<CesiumGeometry::OrientedBoundingBox>(bv);
         result.type = CT_BV_ORIENTED_BOX;
         result.volume.orientedBox.center[0] = obb.getCenter().x;
@@ -476,7 +506,6 @@ CesiumBoundingVolume CesiumTile_getBoundingVolume(CesiumTile* cesiumTile, bool c
         }
     }
     else if (std::holds_alternative<CesiumGeospatial::BoundingRegion>(bv)) {
-        spdlog::default_logger()->info("REGION");
         const auto& region = std::get<CesiumGeospatial::BoundingRegion>(bv);
         
         if(convertToOrientedBox) {
@@ -502,7 +531,6 @@ CesiumBoundingVolume CesiumTile_getBoundingVolume(CesiumTile* cesiumTile, bool c
         }
     }
     else if (std::holds_alternative<CesiumGeospatial::BoundingRegionWithLooseFittingHeights>(bv)) {
-        spdlog::default_logger()->info("REGION LOOSE");
         const auto& region = std::get<CesiumGeospatial::BoundingRegionWithLooseFittingHeights>(bv);
              if(convertToOrientedBox) {
             auto obb = region.getBoundingRegion().getBoundingBox();
@@ -527,7 +555,6 @@ CesiumBoundingVolume CesiumTile_getBoundingVolume(CesiumTile* cesiumTile, bool c
         }
     }
     else {
-        spdlog::default_logger()->info("OTHER");
         // Handle unexpected bounding volume type
         result.type = CT_BV_SPHERE;
         result.volume.sphere = {{0, 0, 0}, 0};
@@ -582,7 +609,7 @@ int CesiumTileset_getLastFrameNumber(CesiumTileset* tileset) {
 
 CesiumTileSelectionState CesiumTile_getTileSelectionState(CesiumTile* tile, int frameNumber) {
     Cesium3DTilesSelection::Tile* cesiumTile = reinterpret_cast<Cesium3DTilesSelection::Tile*>(tile);
-    auto state = cesiumTile->getLastSelectionState();
+    const auto& state = cesiumTile->getLastSelectionState();
     switch(state.getResult(frameNumber)) {
         case TileSelectionState::Result::None:
             return CT_SS_NONE;
@@ -611,6 +638,30 @@ CesiumGltfModel* CesiumTile_getModel(CesiumTile* tile) {
     return nullptr;
 }
 
+double4x4 CesiumGltfModel_getTransform(CesiumGltfModel* model) {
+    auto cesiumModel = reinterpret_cast<CesiumGltf::Model*>(model);
+    glm::dmat4x4 rootTransform = glm::dmat4x4(1.0);
+    auto transform = CesiumGltfContent::GltfUtilities::applyRtcCenter(*cesiumModel, rootTransform);
+    return double4x4 {
+        transform[0][0],
+        transform[0][1],
+        transform[0][2],
+        transform[0][3],
+        transform[1][0],
+        transform[1][1],
+        transform[1][2],
+        transform[1][3],
+        transform[2][0],
+        transform[2][1],
+        transform[2][2],
+        transform[2][3],
+        transform[3][0],
+        transform[3][1],
+        transform[3][2],
+        transform[3][3],
+    };
+}
+
 int CesiumTile_hasModel(CesiumTile* tile) {
     return CesiumTile_getModel(tile) != nullptr;
 }
@@ -631,27 +682,6 @@ int32_t CesiumGltfModel_getTextureCount(CesiumGltfModel* model) {
     if (!model) return 0;
     const CesiumGltf::Model* gltfModel = reinterpret_cast<const CesiumGltf::Model*>(model);
     return static_cast<int32_t>(gltfModel->textures.size());
-}
-
-std::string base64_encode(const unsigned char* input, int length) {
-    BIO *bio, *b64;
-    BUF_MEM *bufferPtr;
-
-    b64 = BIO_new(BIO_f_base64());
-    bio = BIO_new(BIO_s_mem());
-    bio = BIO_push(b64, bio);
-
-    BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL); // Ignore newlines - write everything in one line
-    BIO_write(bio, input, length);
-    BIO_flush(bio);
-    BIO_get_mem_ptr(bio, &bufferPtr);
-    BIO_set_close(bio, BIO_NOCLOSE);
-    BIO_free_all(bio);
-
-    std::string output(bufferPtr->data, bufferPtr->length);
-    BUF_MEM_free(bufferPtr);
-
-    return output;
 }
 
 uint8_t* CesiumGltfModel_serialize_to_data_uri(CesiumGltfModel* opaqueModel, uint32_t* length) {
