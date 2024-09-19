@@ -30,6 +30,11 @@ external ffi.Pointer<CesiumTileset> CesiumTileset_createFromIonAsset(
   ffi.Pointer<ffi.NativeFunction<ffi.Void Function()>> onRootTileAvailableEvent,
 );
 
+@ffi.Native<ffi.Float Function(ffi.Pointer<CesiumTileset>)>()
+external double CesiumTileset_computeLoadProgress(
+  ffi.Pointer<CesiumTileset> tileset,
+);
+
 @ffi.Native<ffi.Int Function(ffi.Pointer<CesiumTileset>)>()
 external int CesiumTileset_getLastFrameNumber(
   ffi.Pointer<CesiumTileset> tileset,
@@ -52,9 +57,12 @@ external void CesiumTileset_getErrorMessage(
   ffi.Pointer<ffi.Char> out,
 );
 
-@ffi.Native<ffi.Void Function(ffi.Pointer<CesiumTileset>)>()
+@ffi.Native<
+    ffi.Void Function(ffi.Pointer<CesiumTileset>,
+        ffi.Pointer<ffi.NativeFunction<ffi.Void Function()>>)>()
 external void CesiumTileset_destroy(
   ffi.Pointer<CesiumTileset> tileset,
+  ffi.Pointer<ffi.NativeFunction<ffi.Void Function()>> onTileDestroyEvent,
 );
 
 @ffi.Native<
@@ -101,12 +109,9 @@ external int CesiumTileset_getTileContentType(
   ffi.Pointer<CesiumTile> tile,
 );
 
-@ffi.Native<
-    ffi.Void Function(
-        ffi.Pointer<CesiumTile>, ffi.Pointer<CesiumTilesetRenderableTiles>)>()
-external void CesiumTileset_getRenderableTiles(
+@ffi.Native<CesiumTilesetRenderableTiles Function(ffi.Pointer<CesiumTile>)>()
+external CesiumTilesetRenderableTiles CesiumTileset_getRenderableTiles(
   ffi.Pointer<CesiumTile> cesiumTile,
-  ffi.Pointer<CesiumTilesetRenderableTiles> out,
 );
 
 @ffi.Native<ffi.Int32 Function(ffi.Pointer<CesiumTileset>)>()
@@ -144,6 +149,11 @@ external double4x4 CesiumTile_getTransform(
 @ffi.Native<ffi.Pointer<CesiumGltfModel> Function(ffi.Pointer<CesiumTile>)>()
 external ffi.Pointer<CesiumGltfModel> CesiumTile_getModel(
   ffi.Pointer<CesiumTile> tile,
+);
+
+@ffi.Native<double4x4 Function(ffi.Pointer<CesiumGltfModel>)>()
+external double4x4 CesiumGltfModel_getTransform(
+  ffi.Pointer<CesiumGltfModel> model,
 );
 
 @ffi.Native<ffi.Int Function(ffi.Pointer<CesiumTile>)>()
@@ -192,13 +202,11 @@ final class CesiumTile extends ffi.Opaque {}
 final class CesiumGltfModel extends ffi.Opaque {}
 
 final class CesiumTilesetRenderableTiles extends ffi.Struct {
-  external ffi.Pointer<ffi.Pointer<CesiumTile>> tiles;
+  @ffi.Array.multi([1024])
+  external ffi.Array<ffi.Pointer<CesiumTile>> tiles;
 
   @ffi.Int32()
   external int numTiles;
-
-  @ffi.Int32()
-  external int maxSize;
 }
 
 abstract class CesiumTileLoadState {
