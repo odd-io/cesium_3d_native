@@ -1,4 +1,3 @@
-import 'package:cesium_3d_native/cesium_3d_native.dart';
 import 'package:vector_math/vector_math_64.dart';
 
 // Represents the current view (i.e. camera orientation)
