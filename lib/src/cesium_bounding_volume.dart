@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:vector_math/vector_math_64.dart';
 
 abstract class CesiumBoundingVolume {}
