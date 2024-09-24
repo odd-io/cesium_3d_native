@@ -68,7 +68,7 @@ Most end users should start with the [example Flutter project](https://TODO), or
 export CESIUM_ION_ASSET_ID=YOUR_CESIUM_ION_ASSET_TOKEN
 export CESIUM_ION_ACCESS_TOKEN=YOUR_CESIUM_ION_ASSET_TOKEN
 dart pub get
-dart --enable-experiment=native-assets example/cesium_3d_tiles/tileset_from_ion.dart ${CESIUM_ION_ASSET_ID} ${CESIUM_ION_ACCESS_TOKEN}
+dart --enable-experiment=native-assets run example/cesium_3d_tiles/tileset_from_ion.dart ${CESIUM_ION_ASSET_ID} ${CESIUM_ION_ACCESS_TOKEN}
 ```
 
 Let's go through this script step-by-step.
