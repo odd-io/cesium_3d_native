@@ -1,9 +1,10 @@
 import 'dart:io';
 
-import 'package:cesium_3d_native/cesium_3d_native.dart';
-import 'package:cesium_3d_native/src/cesium_view.dart';
+import 'package:cesium_3d_tiles/cesium_3d_tiles.dart';
+import 'package:cesium_3d_tiles/src/cesium_native/cesium_view.dart';
 import 'package:test/test.dart';
-import 'package:vector_math/vector_math.dart';
+import 'package:vector_math/vector_math_64.dart';
+
 
 void main(List<String> args) async {
   if (args.length != 1) {
@@ -14,7 +15,7 @@ void main(List<String> args) async {
   final url = args[0];
 
   print("Loading from URL $url");
-  var tileset = Cesium3D.instance.loadFromUrl(url);
+  var tileset = await Cesium3D.instance.loadFromUrl(url);
 
   var view = CesiumView(
       Vector3(0, 0, 1000), Vector3(0, 0, -1), Vector3(0, 1, 0), 500, 500, 45);
@@ -22,8 +23,6 @@ void main(List<String> args) async {
   var numToRender = Cesium3D.instance.updateTilesetView(tileset, view);
 
   print("numToRender $numToRender");
-
-  Cesium3D.instance.checkLoadError(tileset);
 
 
 }

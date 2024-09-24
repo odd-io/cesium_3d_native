@@ -3,10 +3,10 @@ import 'dart:ffi';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:cesium_3d_native/src/cartographic_position.dart';
-import 'package:cesium_3d_native/src/cesium_3d_native.g.dart' as g;
-import 'package:cesium_3d_native/src/cesium_bounding_volume.dart';
-import 'package:cesium_3d_native/src/cesium_view.dart';
+import 'package:cesium_3d_tiles/src/cesium_native/cartographic_position.dart';
+import 'package:cesium_3d_tiles/src/cesium_native/cesium_3d_native.g.dart' as g;
+import 'package:cesium_3d_tiles/src/cesium_native/cesium_bounding_volume.dart';
+import 'package:cesium_3d_tiles/src/cesium_native/cesium_view.dart';
 import 'package:ffi/ffi.dart';
 import 'package:vector_math/vector_math_64.dart';
 

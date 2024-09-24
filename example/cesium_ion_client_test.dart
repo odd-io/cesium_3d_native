@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:cesium_3d_native/src/ion/CesiumIonClient.dart';
+import 'package:cesium_3d_tiles/src/ion/CesiumIonClient.dart';
 import 'package:http/http.dart' as http;
 
 void main(List<String> args) async {

@@ -5,4 +5,4 @@ headers:
   include-directives:
     - 'native/include/CesiumTilesetCApi.h'
 ffi-native:
-  assetId: package:cesium_3d_native/cesium_3d_native.dart
+  assetId: package:cesium_3d_tiles/cesium_3d_native.dart

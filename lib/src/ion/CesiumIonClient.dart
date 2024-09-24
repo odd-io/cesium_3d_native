@@ -1,6 +1,6 @@
 import 'dart:convert';
-import 'package:cesium_3d_native/src/ion/CesiumIonAsset.dart';
-import 'package:cesium_3d_native/src/ion/CesiumIonAssetEndpoint.dart';
+import 'package:cesium_3d_tiles/src/ion/CesiumIonAsset.dart';
+import 'package:cesium_3d_tiles/src/ion/CesiumIonAssetEndpoint.dart';
 import 'package:http/http.dart' as http;
 
 class CesiumIonClient {
