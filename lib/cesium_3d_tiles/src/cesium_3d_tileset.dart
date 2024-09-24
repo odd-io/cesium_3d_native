@@ -1,30 +1,33 @@
 import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
-import 'package:cesium_3d_tiles/cesium_3d_tiles.dart';
+import 'package:cesium_3d_tiles/cesium_native/cesium_native.dart';
+import 'cesium_3d_tile.dart';
 import 'transforms.dart';
 import 'package:vector_math/vector_math_64.dart';
 
-  ///
-  /// When working with multiple tileset can be assigned a render layer, to determine that will determine both the visibility and the render
-  /// priority for this tileset.
-  ///
-  /// Markers are always at render layer 0, this should be between 1 and 6 (inclusive).
-  ///
+///
+/// When working with multiple tileset can be assigned a render layer, to determine that will determine both the visibility and the render
+/// priority for this tileset.
+///
+/// Markers are always at render layer 0, this should be between 1 and 6 (inclusive).
+///
 enum RenderLayer {
-  layer0, layer1, layer2, layer3, layer4, 
+  layer0,
+  layer1,
+  layer2,
+  layer3,
+  layer4,
 }
 
 ///
 /// A high-level interface for a Cesium 3D Tiles tileset.
 ///
 class Cesium3DTileset {
-  
   ///
   /// A name used for debugging.
   ///
   final String? debugName;
-
 
   ///
   /// A handle to the native CesiumTileset managed by this instance.
@@ -61,13 +64,11 @@ class Cesium3DTileset {
   ///
   ///
   ///
-  static Future<Cesium3DTileset> fromCesiumIon(
-      int assetId, String accessToken,
+  static Future<Cesium3DTileset> fromCesiumIon(int assetId, String accessToken,
       {RenderLayer renderLayer = RenderLayer.layer0}) async {
     var tileset =
         await CesiumNative.instance.loadFromCesiumIon(assetId, accessToken);
-    return Cesium3DTileset._(tileset, renderLayer,
-        debugName: "ion:$assetId");
+    return Cesium3DTileset._(tileset, renderLayer, debugName: "ion:$assetId");
   }
 
   ///
@@ -100,8 +101,8 @@ class Cesium3DTileset {
     if (rootTile == null) {
       return null;
     }
-    return sqrt(
-        CesiumNative.instance.squaredDistanceToBoundingVolume(_view, rootTile!));
+    return sqrt(CesiumNative.instance
+        .squaredDistanceToBoundingVolume(_view, rootTile!));
   }
 
   ///
@@ -145,9 +146,11 @@ class Cesium3DTileset {
   ///
   ///
   ///
-  Iterable<({CesiumTile tile, CesiumTileSelectionState state})>
-      updateCameraAndViewport(Matrix4 modelMatrix, Matrix4 projectionMatrix,
-          double viewportWidth, double viewportHeight) sync* {
+  Iterable<Cesium3DTile> updateCameraAndViewport(
+      Matrix4 modelMatrix,
+      Matrix4 projectionMatrix,
+      double viewportWidth,
+      double viewportHeight) sync* {
     // Extract the position from the matrix
     var gltfPosition = modelMatrix.getTranslation();
 
@@ -165,18 +168,19 @@ class Cesium3DTileset {
     CesiumNative.instance.updateTilesetView(_tileset, _view);
 
     if (_rootTile != null) {
-      final renderableTiles = CesiumNative.instance.getRenderableTiles(_rootTile!);
+      final renderableTiles =
+          CesiumNative.instance.getRenderableTiles(_rootTile!);
       for (final tile in renderableTiles) {
         var tileSelectionState =
             CesiumNative.instance.getSelectionState(_tileset, tile);
-        yield (tile: tile, state: tileSelectionState);
+        yield Cesium3DTile(tile, tileSelectionState, this);
       }
     }
   }
 
   final _models = <CesiumTile, SerializedCesiumGltfModel>{};
 
-  Uint8List load(CesiumTile tile) {
+  Uint8List loadGltf(CesiumTile tile) {
     if (!_models.containsKey(tile)) {
       var model = CesiumNative.instance.getModel(tile);
       var serialized = CesiumNative.instance.serializeGltfData(model);
@@ -185,7 +189,7 @@ class Cesium3DTileset {
     return _models[tile]!.data;
   }
 
-  void free(CesiumTile tile) {
+  void freeGltf(CesiumTile tile) {
     _models[tile]?.free();
     _models.remove(tile);
   }

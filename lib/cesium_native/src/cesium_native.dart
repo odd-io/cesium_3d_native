@@ -10,6 +10,8 @@ import 'package:cesium_3d_tiles/cesium_native/src/cesium_view.dart';
 import 'package:ffi/ffi.dart';
 import 'package:vector_math/vector_math_64.dart';
 
+import 'cesium_tile_selection_state.dart';
+
 class CesiumTileset {
   final Pointer<g.CesiumTileset> _ptr;
   DateTime? _lastUpdate;
@@ -50,14 +52,7 @@ enum CesiumTileLoadState {
   Failed
 }
 
-enum CesiumTileSelectionState {
-  None,
-  Culled,
-  Rendered,
-  Refined,
-  RenderedAndKicked,
-  RefinedAndKicked
-}
+
 
 class CesiumNative {
   // preallocate memory

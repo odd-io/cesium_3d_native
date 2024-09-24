@@ -1,11 +1,17 @@
 import 'dart:io';
 
-import 'package:cesium_3d_tiles/src/ion/CesiumIonClient.dart';
+import 'package:cesium_3d_tiles/cesium_ion/cesium_ion.dart';
 import 'package:http/http.dart' as http;
 
+///
+/// Cesium Native has its own implementation for retrieving Cesium Ion assets.
+/// However, we did create a small Dart interface for listing/retrieving Cesium
+/// Ion assets to help with testing and debugging; this is totally separate from 
+/// Cesium Native, and you probably don't want or need to use these classes.
+///
 void main(List<String> args) async {
   if (args.length != 1) {
-    print("Usage: dart cesium_ion_client_test.dart <ACCESS_TOKEN>");
+    print("Usage: dart get_ion_assets_without_native.dart <ACCESS_TOKEN>");
     exit(-1);
   }
   final accessToken = args[0];

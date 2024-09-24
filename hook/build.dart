@@ -53,7 +53,7 @@ void main(List<String> args) async {
     final cbuilder = CBuilder.library(
       name: packageName,
       language: Language.cpp,
-      assetName: 'cesium_3d_native.dart',
+      assetName: 'cesium_native/cesium_native.dart',
       sources: sources,
       includes: [
         'native/include',

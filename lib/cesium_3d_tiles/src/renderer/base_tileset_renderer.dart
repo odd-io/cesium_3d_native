@@ -8,6 +8,8 @@ import 'package:cesium_3d_tiles/cesium_3d_tiles/src/renderer/tileset_renderer.da
 import 'package:cesium_3d_tiles/cesium_native/src/cesium_native.dart';
 import 'package:vector_math/vector_math_64.dart';
 
+import '../cesium_3d_tile.dart';
+
 ///
 /// A partial implementation of [TilesetRenderer].
 ///
@@ -22,9 +24,9 @@ import 'package:vector_math/vector_math_64.dart';
 /// actual rendering library.
 ///
 abstract class BaseTilesetRenderer<T> extends TilesetRenderer {
-  final _loaded = <CesiumTile>{};
-  final _loadQueue = <(Cesium3DTileset, CesiumTile)>[];
-  final _cullQueue = <(Cesium3DTileset, CesiumTile)>[];
+  final _loaded = <Cesium3DTile>{};
+  final _loadQueue = <Cesium3DTile>[];
+  final _cullQueue = <Cesium3DTile>[];
 
   bool _handlingQueue = false;
   bool _updateCamera = true;
@@ -32,7 +34,7 @@ abstract class BaseTilesetRenderer<T> extends TilesetRenderer {
   Timer? _timer;
 
   final _layers = <Cesium3DTileset, List<CesiumTile>>{};
-  final _entities = <CesiumTile, T>{};
+  final _entities = <Cesium3DTile, T>{};
 
   /// Creates a new instance of BaseTilesetRenderer.
   ///
@@ -52,21 +54,18 @@ abstract class BaseTilesetRenderer<T> extends TilesetRenderer {
 
       if (_loadQueue.isNotEmpty) {
         var item = _loadQueue.removeLast();
-        var tileset = item.$1;
-        var tile = item.$2;
-        await _load(tile, tileset);
+        await _load(item);
       }
 
       if (_cullQueue.isNotEmpty) {
-        var item = _cullQueue.removeLast();
-        var tile = item.$2;
-        await _remove(tile, item.$1);
+        var tile = _cullQueue.removeLast();
+        await _remove(tile);
       }
       _handlingQueue = false;
     });
   }
 
-  Future _remove(CesiumTile tile, Cesium3DTileset tileset) async {
+  Future _remove(Cesium3DTile tile) async {
     if (_loaded.contains(tile)) {
       final entity = _entities[tile];
       if (entity != null) {
@@ -76,29 +75,29 @@ abstract class BaseTilesetRenderer<T> extends TilesetRenderer {
       _entities.remove(tile);
 
       _loaded.remove(tile);
-      tileset.free(tile);
+      tile.freeGltf();
     }
   }
 
-  Future _load(CesiumTile tile, Cesium3DTileset tileset) async {
+  Future _load(Cesium3DTile tile) async {
     late T entity;
     if (!_loaded.contains(tile)) {
       if (_entities.containsKey(tile)) {
         throw Exception("FATAL");
       }
 
-      final data = tileset.load(tile);
+      final data = tile.loadGltf();
 
-      var transform = tileset.getTransform(tile);
+      var transform = tile.getTransform();
 
-      entity = await loadGlb(data, transform, tileset);
+      entity = await loadGlb(data, transform, tile.tileset);
 
       _entities[tile] = entity;
 
       _loaded.add(tile);
     }
 
-    await _reveal(tile, tileset);
+    await _reveal(tile);
   }
 
   /// Adds a new [Cesium3DTileset] to the renderer.
@@ -376,7 +375,7 @@ abstract class BaseTilesetRenderer<T> extends TilesetRenderer {
     return viewMatrix;
   }
 
-  Future _hide(CesiumTile tile, Cesium3DTileset layer) async {
+  Future _hide(Cesium3DTile tile) async {
     var entity = _entities[tile];
     if (entity != null) {
       await setEntityVisibility(entity, false);
@@ -385,7 +384,7 @@ abstract class BaseTilesetRenderer<T> extends TilesetRenderer {
     }
   }
 
-  Future _reveal(CesiumTile tile, Cesium3DTileset layer) async {
+  Future _reveal(Cesium3DTile tile) async {
     var entity = _entities[tile];
     if (entity != null) {
       await setEntityVisibility(entity, true);
@@ -406,25 +405,25 @@ abstract class BaseTilesetRenderer<T> extends TilesetRenderer {
       for (var tile in renderable) {
         switch (tile.state) {
           case CesiumTileSelectionState.Rendered:
-            if (!_loaded.contains(tile.tile)) {
-              _loadQueue.add((layer, tile.tile));
+            if (!_loaded.contains(tile)) {
+              _loadQueue.add(tile);
             }
           case CesiumTileSelectionState.Refined:
-            if (_loaded.contains(tile.tile)) {
-              await _remove(tile.tile, layer);
+            if (_loaded.contains(tile)) {
+              await _remove(tile);
             }
           case CesiumTileSelectionState.Culled:
-            if (_loaded.contains(tile.tile)) {
-              _cullQueue.add((layer, tile.tile));
+            if (_loaded.contains(tile)) {
+              _cullQueue.add(tile);
             }
           case CesiumTileSelectionState.None:
-            if (_loaded.contains(tile.tile)) {
-              _cullQueue.add((layer, tile.tile));
+            if (_loaded.contains(tile)) {
+              _cullQueue.add(tile);
             }
           case CesiumTileSelectionState.RenderedAndKicked:
-            await _hide(tile.tile, layer);
+            await _hide(tile);
           case CesiumTileSelectionState.RefinedAndKicked:
-            await _hide(tile.tile, layer);
+            await _hide(tile);
         }
       }
     }
