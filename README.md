@@ -8,7 +8,7 @@ AGI, a member of the OGC, maintains and publishes Cesium, its own platform imple
 
 This Dart package is an (unofficial) wrapper around the Cesium Native library, exposing Dart bindings for a small part of the Cesium Native API, and also some higher level Dart components to make it easier to work with Cesium 3D Tiles.
 
-## Getting started
+## Overview
 
 Let's recap with a brief overview of the Cesium 3D Tile format.
 
@@ -58,6 +58,32 @@ It's also important to note that this package *does not provide any actual rende
 The `cesium_3d_tiles` library includes the `TilesetRenderer` interface, which describes a set of methods that you could use to render a multiple `Cesium3DTileset` instances to a rendering surface. The library also provides a partial implementation `BaseTilesetRenderer`, using `cesium_native` to load a tileset and manage tile content, but requires that you implement the rendering-specific logic yourself. 
 
 The intention is that end users create their own apps that depend on `cesium_3d_tiles`, and that extend `BaseTilesetRenderer` to implement the abstract methods with a specific rendering library. You can [click here to see an example Flutter application](https://TODO) that uses the [Thermion](https://thermion.dev) rendering library to implement these abstract methods.
+
+## Getting started
+
+### cesium_3d_tiles
+
+Most end users should start with the [example Flutter project](https://TODO), or running the following:
+```
+export CESIUM_ION_ASSET_ID=YOUR_CESIUM_ION_ASSET_TOKEN
+export CESIUM_ION_ACCESS_TOKEN=YOUR_CESIUM_ION_ASSET_TOKEN
+dart pub get
+dart --enable-experiment=native-assets  example/get_tileset_from_ion_id ${CESIUM_ION_ASSET_ID} ${CESIUM_ION_ACCESS_TOKEN}
+```
+
+### cesium_native
+
+The simplest starting point is to run the following:
+
+```
+export CESIUM_ION_ASSET_ID=YOUR_CESIUM_ION_ASSET_TOKEN
+export CESIUM_ION_ACCESS_TOKEN=YOUR_CESIUM_ION_ASSET_TOKEN
+dart pub get
+dart --enable-experiment=native-assets run example/cesium_3d_tiles/get_tileset_from_ion_id ${CESIUM_ION_ASSET_ID} ${CESIUM_ION_ACCESS_TOKEN}
+```
+
+
+
 
 ## Notes Coordinate System
 Cesium 3D Tiles uses a right-handed Cartesian coordinate system, typically representing positions on or near the Earth's surface. The coordinate system is usually either:
