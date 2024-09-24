@@ -2,14 +2,10 @@
 CXX := g++
 
 # Compiler flags
-CXXFLAGS := -std=c++17
+CXXFLAGS := -std=c++17 -fPIC
 
 # Include directories
-INCLUDES := -I include -I generated/include \
-    -I ~/Documents/odd-io/asyncplusplus/include \
-    -I ~/Documents/odd-io/spdlog/include \
-    -I ~/Documents/odd-io/GSL/include \
-    -I /Users/nickfisher/.ezvcpkg/2024.07.12/installed/arm64-osx/include
+INCLUDES := -I include -I generated/include -I thirdparty/include
 
 # Library directories
 LIBDIRS := $(shell for dir in $$(find ../../cesium-native/build/ -maxdepth 1 -name "Cesium*"); do echo "-L$$(realpath $$dir)"; done)
@@ -21,8 +17,8 @@ THIRDPARTY := $(shell for lib in $$(find "/Users/nickfisher/.ezvcpkg/2024.07.12/
 # Libraries
 LIBS := -lcurl -lssl -lcrypto \
     -lCesiumGltf -lCesiumGltfContent -lCesiumGltfReader \
-    -lCesium3DTiles -lCesium3DTilesContent -lCesium3DTilesReader \
-    -lCesium3DTilesWriter -lCesium3DTilesSelection \
+    -lCesiumNativeTiles -lCesiumNativeTilesContent -lCesiumNativeTilesReader \
+    -lCesiumNativeTilesWriter -lCesiumNativeTilesSelection \
     -lCesiumAsync -lCesiumGeospatial -lCesiumGeometry -lCesiumUtility \
     -lCesiumJsonReader -lCesiumQuantizedMeshTerrain -lCesiumRasterOverlays \
     -luriparser -lssl -lcrypto -lasync++ -llibmodpbase64 -lz -lktx -ls2 \
@@ -32,8 +28,11 @@ LIBS := -lcurl -lssl -lcrypto \
 FRAMEWORKS := -framework CoreFoundation -framework SystemConfiguration
 
 # Source files
-SRC := src/cesium_tileset.c
-OBJ := src/cesium_tileset.o
+SRC := src/CesiumTilesetCApi.cpp
+OBJ := src/CesiumTilesetCApi.o
+
+# Dynamic library name
+DYLIB := libCesiumTilesetCApi.dylib
 
 # Main target
 TARGET := tileset_test
@@ -43,10 +42,13 @@ all: $(TARGET)
 $(OBJ): $(SRC)
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 
-$(TARGET): $(OBJ) tileset_test.c
-	$(CXX) $(CXXFLAGS) $(INCLUDES) tileset_test.c $< $(THIRDPARTY) $(FRAMEWORKS) $(LIBDIRS) $(LIBS) -o $@
+$(DYLIB): $(OBJ)
+	$(CXX) -shared -o $@ $< $(LIBDIRS) $(LIBS) $(FRAMEWORKS) $(THIRDPARTY)
+
+$(TARGET): $(DYLIB) tileset_test.c
+	$(CXX) $(CXXFLAGS) $(INCLUDES) tileset_test.c -L. -lCesiumTilesetCApi -o $@
 
 clean:
-	rm -f $(OBJ) $(TARGET)
+	rm -f $(OBJ) $(DYLIB) $(TARGET)
 
 .PHONY: all clean
