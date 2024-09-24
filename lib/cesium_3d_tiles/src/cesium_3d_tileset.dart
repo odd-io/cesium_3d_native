@@ -5,29 +5,32 @@ import 'package:cesium_3d_tiles/cesium_3d_tiles.dart';
 import 'transforms.dart';
 import 'package:vector_math/vector_math_64.dart';
 
+  ///
+  /// When working with multiple tileset can be assigned a render layer, to determine that will determine both the visibility and the render
+  /// priority for this tileset.
+  ///
+  /// Markers are always at render layer 0, this should be between 1 and 6 (inclusive).
+  ///
 enum RenderLayer {
   layer0, layer1, layer2, layer3, layer4, 
 }
 
 ///
 /// A high-level interface for a Cesium 3D Tiles tileset.
-/// [Cesium3DTilesetLayer] does not render anything to a screen;
-/// [updateCameraAndViewport]
 ///
-class Cesium3DTilesetLayer {
+class Cesium3DTileset {
+  
   ///
   /// A name used for debugging.
   ///
   final String? debugName;
 
-  final CesiumTileset _tileset;
 
   ///
-  /// The render layer that will determine both the visibility and the render
-  /// priority for this tileset.
-  ///
+  /// A handle to the native CesiumTileset managed by this instance.
+  final CesiumTileset _tileset;
+
   /// Markers are always at render layer 0, this should be between 1 and 6 (inclusive).
-  ///
   final RenderLayer renderLayer;
 
   late CesiumView _view =
@@ -36,66 +39,84 @@ class Cesium3DTilesetLayer {
   CesiumTile? _rootTile;
 
   CesiumTile? get rootTile {
-    _rootTile ??= Cesium3D.instance.getRootTile(_tileset);
+    _rootTile ??= CesiumNative.instance.getRootTile(_tileset);
     return _rootTile;
   }
 
   Future dispose() async {
-    Cesium3D.instance.destroy(_tileset);
+    CesiumNative.instance.destroy(_tileset);
   }
 
   ///
   ///
   ///
-  Cesium3DTilesetLayer._(this._tileset, this.renderLayer, {this.debugName});
+  Cesium3DTileset._(this._tileset, this.renderLayer, {this.debugName});
 
-  static Future<Cesium3DTilesetLayer> fromUrl(String url,
+  static Future<Cesium3DTileset> fromUrl(String url,
       {RenderLayer renderLayer = RenderLayer.layer0}) async {
-    var tileset = await Cesium3D.instance.loadFromUrl(url);
-    return Cesium3DTilesetLayer._(tileset, renderLayer);
+    var tileset = await CesiumNative.instance.loadFromUrl(url);
+    return Cesium3DTileset._(tileset, renderLayer);
   }
 
-  static Future<Cesium3DTilesetLayer> fromCesiumIon(
+  ///
+  ///
+  ///
+  static Future<Cesium3DTileset> fromCesiumIon(
       int assetId, String accessToken,
       {RenderLayer renderLayer = RenderLayer.layer0}) async {
     var tileset =
-        await Cesium3D.instance.loadFromCesiumIon(assetId, accessToken);
-    return Cesium3DTilesetLayer._(tileset, renderLayer,
+        await CesiumNative.instance.loadFromCesiumIon(assetId, accessToken);
+    return Cesium3DTileset._(tileset, renderLayer,
         debugName: "ion:$assetId");
   }
 
+  ///
+  ///
+  ///
   bool isRootTileLoaded() {
     if (rootTile == null) {
       return false;
     }
-    return Cesium3D.instance.getLoadState(rootTile!) ==
+    return CesiumNative.instance.getLoadState(rootTile!) ==
         CesiumTileLoadState.Done;
   }
 
+  ///
+  ///
+  ///
   double? getDistanceToSurface() {
     if (rootTile == null) {
       return null;
     }
     final cartographicPosition =
-        Cesium3D.instance.getCartographicPosition(_view);
+        CesiumNative.instance.getCartographicPosition(_view);
     return cartographicPosition.height;
   }
 
+  ///
+  ///
+  ///
   double? getDistanceToBoundingVolume() {
     if (rootTile == null) {
       return null;
     }
     return sqrt(
-        Cesium3D.instance.squaredDistanceToBoundingVolume(_view, rootTile!));
+        CesiumNative.instance.squaredDistanceToBoundingVolume(_view, rootTile!));
   }
 
+  ///
+  ///
+  ///
   Matrix4 getTransform(CesiumTile tile) {
-    var transform = Cesium3D.instance.getTransform(tile);
+    var transform = CesiumNative.instance.getTransform(tile);
     return ecefToGltf * transform * gltfToEcef;
   }
 
+  ///
+  ///
+  ///
   Vector3? getTileCenter(CesiumTile tile) {
-    var volume = Cesium3D.instance
+    var volume = CesiumNative.instance
         .getBoundingVolume(tile, convertRegionToOrientedBox: true);
     var transform = ecefToGltf;
     if (volume is CesiumBoundingVolumeOrientedBox) {
@@ -114,10 +135,16 @@ class Cesium3DTilesetLayer {
     }
   }
 
+  ///
+  ///
+  ///
   double getLoadProgress() {
-    return Cesium3D.instance.computeLoadProgess(_tileset);
+    return CesiumNative.instance.computeLoadProgess(_tileset);
   }
 
+  ///
+  ///
+  ///
   Iterable<({CesiumTile tile, CesiumTileSelectionState state})>
       updateCameraAndViewport(Matrix4 modelMatrix, Matrix4 projectionMatrix,
           double viewportWidth, double viewportHeight) sync* {
@@ -135,13 +162,13 @@ class Cesium3DTilesetLayer {
         _getHorizontalFovFromProjectionMatrix(projectionMatrix);
     _view = CesiumView(
         position, forward, up, viewportWidth, viewportHeight, horizontalFov);
-    Cesium3D.instance.updateTilesetView(_tileset, _view);
+    CesiumNative.instance.updateTilesetView(_tileset, _view);
 
     if (_rootTile != null) {
-      final renderableTiles = Cesium3D.instance.getRenderableTiles(_rootTile!);
+      final renderableTiles = CesiumNative.instance.getRenderableTiles(_rootTile!);
       for (final tile in renderableTiles) {
         var tileSelectionState =
-            Cesium3D.instance.getSelectionState(_tileset, tile);
+            CesiumNative.instance.getSelectionState(_tileset, tile);
         yield (tile: tile, state: tileSelectionState);
       }
     }
@@ -151,8 +178,8 @@ class Cesium3DTilesetLayer {
 
   Uint8List load(CesiumTile tile) {
     if (!_models.containsKey(tile)) {
-      var model = Cesium3D.instance.getModel(tile);
-      var serialized = Cesium3D.instance.serializeGltfData(model);
+      var model = CesiumNative.instance.getModel(tile);
+      var serialized = CesiumNative.instance.serializeGltfData(model);
       _models[tile] = serialized;
     }
     return _models[tile]!.data;
@@ -165,7 +192,7 @@ class Cesium3DTilesetLayer {
 
   Vector3 getExtent(CesiumTile tile) {
     Vector3? extent;
-    var volume = Cesium3D.instance
+    var volume = CesiumNative.instance
         .getBoundingVolume(tile, convertRegionToOrientedBox: true);
 
     if (volume is CesiumBoundingVolumeOrientedBox) {
@@ -182,7 +209,7 @@ class Cesium3DTilesetLayer {
   }
 
   bool isOutsideBoundingVolume(CesiumTile tile, Vector3 position) {
-    var volume = Cesium3D.instance.getBoundingVolume(tile,
+    var volume = CesiumNative.instance.getBoundingVolume(tile,
         convertRegionToOrientedBox: true) as CesiumBoundingVolumeOrientedBox;
 
     // Calculate the vector from the box center to the position
@@ -211,12 +238,12 @@ class Cesium3DTilesetLayer {
   }
 
   void getRootTileSelectionState() {
-    final renderableTiles = Cesium3D.instance.getRenderableTiles(rootTile!);
-    print(Cesium3D.instance.getSelectionState(_tileset, rootTile!));
+    final renderableTiles = CesiumNative.instance.getRenderableTiles(rootTile!);
+    print(CesiumNative.instance.getSelectionState(_tileset, rootTile!));
     for (final tile in renderableTiles) {
-      print(Cesium3D.instance.getSelectionState(_tileset, tile));
-      var model = Cesium3D.instance.getModel(tile);
-      print(Cesium3D.instance.getGltfTransform(model));
+      print(CesiumNative.instance.getSelectionState(_tileset, tile));
+      var model = CesiumNative.instance.getModel(tile);
+      print(CesiumNative.instance.getGltfTransform(model));
     }
   }
 }

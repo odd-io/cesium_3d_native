@@ -3,10 +3,10 @@ import 'dart:ffi';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:cesium_3d_tiles/src/cesium_native/cartographic_position.dart';
-import 'package:cesium_3d_tiles/src/cesium_native/cesium_3d_native.g.dart' as g;
-import 'package:cesium_3d_tiles/src/cesium_native/cesium_bounding_volume.dart';
-import 'package:cesium_3d_tiles/src/cesium_native/cesium_view.dart';
+import 'package:cesium_3d_tiles/cesium_native/src/cartographic_position.dart';
+import 'package:cesium_3d_tiles/cesium_native/src/cesium_native.g.dart' as g;
+import 'package:cesium_3d_tiles/cesium_native/src/cesium_bounding_volume.dart';
+import 'package:cesium_3d_tiles/cesium_native/src/cesium_view.dart';
 import 'package:ffi/ffi.dart';
 import 'package:vector_math/vector_math_64.dart';
 
@@ -59,7 +59,7 @@ enum CesiumTileSelectionState {
   RefinedAndKicked
 }
 
-class Cesium3D {
+class CesiumNative {
   // preallocate memory
 
   // error message
@@ -71,13 +71,13 @@ class Cesium3D {
   // render content
   static const int _maxRenderContent = 1024;
 
-  static Cesium3D? _instance;
-  static Cesium3D get instance {
-    _instance ??= Cesium3D._();
+  static CesiumNative? _instance;
+  static CesiumNative get instance {
+    _instance ??= CesiumNative._();
     return _instance!;
   }
 
-  Cesium3D._() {
+  CesiumNative._() {
     g.CesiumTileset_initialize();
     _errorMessage = calloc<Char>(256);
     _length = calloc<Uint32>(1);
