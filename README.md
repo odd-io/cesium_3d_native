@@ -68,71 +68,100 @@ Most end users should start with the [example Flutter project](https://TODO), or
 export CESIUM_ION_ASSET_ID=YOUR_CESIUM_ION_ASSET_TOKEN
 export CESIUM_ION_ACCESS_TOKEN=YOUR_CESIUM_ION_ASSET_TOKEN
 dart pub get
-dart --enable-experiment=native-assets  example/get_tileset_from_ion_id ${CESIUM_ION_ASSET_ID} ${CESIUM_ION_ACCESS_TOKEN}
+dart --enable-experiment=native-assets example/cesium_3d_tiles/tileset_from_ion.dart ${CESIUM_ION_ASSET_ID} ${CESIUM_ION_ACCESS_TOKEN}
 ```
+
+Let's go through this script step-by-step.
+
+First, we load the tileset from Cesium Ion.
+
+```
+var tileset = await Cesium3DTileset.fromCesiumIon(assetId, accessToken);
+```
+
+Next, we pass the current camera orientation and viewport to the tileset:
+
+```
+final cameraModelMatrix = Matrix4.identity();
+final projectionMatrix = makePerspectiveMatrix(pi / 8, 1.0, 0.05, 10000000);
+final viewport = (width: 1920.0, height: 1080.0);
+
+var renderableTiles = tileset
+      .updateCameraAndViewport(
+          cameraModelMatrix, projectionMatrix, viewport.width, viewport.height)
+      .toList();
+```
+
+> IMPORTANT - the `cesium_3d_tiles` library always expects right-handed gLTF coordinates (i.e Y is up, -Z is into the screen). If your renderer is using a different coordinate system, you will need to transform to this space first. 
+
+
+```
+print("${renderableTiles.length} renderable tiles");
+```
+
+`updateCameraAndViewport` will return a list of renderable tiles; however, not every renderable tile actually requires rendering. You must iterate over each tile to check its state; tiles with the `Rendered` state need to be added to your scene, tiles with `Culled`, `Refined` generally need removing from your scene (and `RenderedAndKicked` or `RefinedAndKicked` may, depending on your application logic).
+
+```
+  for (var tile in renderableTiles) {
+    print("Tile state: ${tile.state}");
+    switch (tile.state) {
+      // if this tile needs to be rendered
+      case CesiumTileSelectionState.Rendered:
+        var gltfContent = tile.loadGltf();
+        // implement your own logic to insert into the scene
+        await tile.freeGltf();
+      case CesiumTileSelectionState.None:
+      // when a tile has not yet been loaded
+      case CesiumTileSelectionState.Culled:
+      // remove tile from scene
+      case CesiumTileSelectionState.Refined:
+      // remove tile from scene
+      case CesiumTileSelectionState.RenderedAndKicked:
+      // remove tile from scene
+      case CesiumTileSelectionState.RefinedAndKicked:
+      // remove tile from scene
+    }
+  }
+```
+
+You will see that there is no actual viewport or rendering logic here - this is why we suggest extending `BaseTilesetRenderer` to implement your own.
 
 ### cesium_native
 
-The simplest starting point is to run the following:
+As discussed above, `cesium_native` is the lower level API for working directly with the data structures returned by the Cesium Native library. `cesium_3d_tiles` is simply a set of Dart classes that wrap this API; if you need to implement some custom logic not supported by `cesium_3d_tiles` (or you need to extend `cesium_native` yourself), work with this library instead.
 
 ```
 export CESIUM_ION_ASSET_ID=YOUR_CESIUM_ION_ASSET_TOKEN
 export CESIUM_ION_ACCESS_TOKEN=YOUR_CESIUM_ION_ASSET_TOKEN
 dart pub get
-dart --enable-experiment=native-assets run example/cesium_3d_tiles/get_tileset_from_ion_id ${CESIUM_ION_ASSET_ID} ${CESIUM_ION_ACCESS_TOKEN}
+dart --enable-experiment=native-assets run example/cesium_native/get_tileset_from_ion_id.dart ${CESIUM_ION_ASSET_ID} ${CESIUM_ION_ACCESS_TOKEN}
 ```
 
+Note that unlike `cesium_3d_tiles`, `cesium_native` generally returns/expects ECEF coordinates. If you work with this library, you will probably need to handle the transformation between ECEF and your renderer's coordinate system.
 
+## Extending cesium_native 
 
+This package ships with pre-compiled static Cesium Native libraries for iOS, Android and MacOS. 
 
-## Notes Coordinate System
-Cesium 3D Tiles uses a right-handed Cartesian coordinate system, typically representing positions on or near the Earth's surface. The coordinate system is usually either:
+When a Dart/Flutter application that depends on this package is run, the `hook/build.dart` file uses Dart's `native-assets` library to:
 
-Earth-Centered, Earth-Fixed (ECEF): A global 3D coordinate system where the origin is at the center of the Earth.
-Local East-North-Up (ENU): A local coordinate system defined relative to a specific point on the Earth's surface.
+1) compile this package's native C/C++ code (under `native/src`)
+2) download the precompiled Cesium Native libraries for the target platform (currently via Cloudflare)
+3) link (1) with (2)
 
-Renderable
-In the context of 3D Tiles, a renderable typically refers to the actual 3D content that can be displayed. This could be:
+We are currently shipping with Cesium Native v0.39.0.
 
-3D models (often in glTF format)
-Point clouds
-Instanced 3D models
-Vector data
+### Building Cesium Native
 
-Renderables are usually associated with individual tiles and are loaded and processed as needed based on the viewer's position and the tile's visibility.
-To use this package, you'll likely start by creating a CesiumView, loading a tileset, and then managing the rendering and interaction with the 3D content. The cesium_3d_tiles module should provide high-level classes and methods to simplify these tasks.
+If you need to (re)build the Cesium Native libraries (e.g. to update the version of Cesium Native to a new version).
 
-dart --enable-experiment=native-assets run test/cesium_ion_client_test.dart YOUR_ACCESS_TOKEN
+1) remove the `include/Cesium*` and `generated/include/Cesium*` directories
+2) run `build.sh`, which will build for all target platforms
+3) copy the headers from the Cesium Native build dir to the `include` and `generated/include` directories 
 
-## Loading
+### Updating FFI bindings
 
-By nature, tilesets and tiles are asynchronous. 
-
-Constructing and loading are separate processes; it is possible to create and return a valid instance of Tileset, that subsequently fails to load.
-
-Proper instantiation should therefore look like this:
-
-```
-final tileset = CesiumNative.loadFromCesiumIon(1234, "my_access_token");
-CesiumNative.updateTilesetView(tileset, // etc etc );
-if(CesiumNative.hasLoadError(tileset)) { 
-    final error = CesiumNative.getLoadErrorMessage(tileset);
-    throw Exception(error)
-}
-
-
-
-## For developers
-
-We have compiled Cesium Native to static C++ libraries for iOS, Android and MacOS.
-
-At runtime, the cesium_3d_native dart package must be linked with the Cesium Native libraries (and its dependencies). 
-
-We have already built these libraries for macOS, Windows, Android and iOS; the hook/build.dart build script will pull these automatically from Cloudflare whenever a Dart/Flutter application that depends on this package is run.
-
-Run `build.sh` if you need to (re)build these libraries (for exampe, if the upstream Cesium Native package is updated).
-
-
+If you have updated `CesiumTilesetCApi.h`, you will need to regenerate the FFI bindings:
 
 ```
 dart --enable-experiment=native-assets run ffigen --config ffigen.yaml                
