@@ -5,6 +5,7 @@ import 'package:native_toolchain_c/native_toolchain_c.dart';
 import 'package:path/path.dart' as p;
 import 'package:archive/archive.dart';
 
+
 Logger _prepareLogger(BuildConfig config) {
   var logDir = Directory(
       "${config.packageRoot.toFilePath()}.dart_tool/cesium_3d_native/log/");
@@ -35,21 +36,39 @@ void main(List<String> args) async {
         .map((f) => f.path)
         .toList();
 
-    final libDir = await getLibDir(config, logger);
+    String targetArch;
+
+    if (config.targetOS == OS.android) {
+      targetArch = switch (config.targetArchitecture) {
+        Architecture.arm => "armeabi-v7a",
+        Architecture.arm64 => "arm64-v8a",
+        Architecture.x64 => "x86_64",
+        Architecture.ia32 => "x86",
+        _ => "arm64-v8a"
+      };
+    } else {
+      targetArch = config.targetArchitecture?.toString() ?? "arm64";
+    }
+
+    final libDir = config.dryRun
+        ? Directory("")
+        : await getLibDir(config, logger, targetArch);
 
     logger.info("Using lib dir : ${libDir.path}");
     final libs = libDir
         .listSync()
         .whereType<File>()
         .where((f) => f.path.endsWith(".a"))
-        .where((f) => !f.path.contains("spd"))
         .map((f) {
       var basename = p.basename(f.path);
       basename = basename.replaceAll(RegExp("^lib"), "");
       basename = basename.replaceAll(".a", "");
       return "-l${basename}";
     });
-
+    for(final lib in libs) {
+      logger.info("Using lib $lib");
+    }
+    
     final cbuilder = CBuilder.library(
       name: packageName,
       language: Language.cpp,
@@ -63,15 +82,25 @@ void main(List<String> args) async {
       flags: [
         "--std=c++17",
         "-L${libDir.path}",
+        "-fPIC",
         "-lcurl",
         "-lssl",
-        "-lcrypto",
+        "-lcrypto",        
         "-lz",
+        if(config.targetOS == OS.android)
+        ...["-landroid","-lidn2", "-lunistring", "-liconv"],
         ...libs,
-        "-framework",
-        "CoreFoundation",
-        "-framework",
-        "SystemConfiguration"
+        if (config.targetOS == OS.iOS || config.targetOS == OS.macOS) ...[
+          "-framework",
+          "CoreFoundation",
+          "-framework",
+          "SystemConfiguration"
+        ],
+        if (config.targetOS == OS.iOS) ...[
+          '-mios-version-min=13.0',
+          '-framework',
+          'Security'
+        ],
       ],
       dartBuildFiles: ['hook/build.dart'],
     );
@@ -81,6 +110,42 @@ void main(List<String> args) async {
       buildOutput: output,
       logger: logger,
     );
+
+    if (config.targetOS == OS.android && !config.dryRun) {
+      var compilerPath = config.cCompiler.compiler!.path;
+
+      if (Platform.isWindows && compilerPath.startsWith("/")) {
+        compilerPath = compilerPath.substring(1);
+      }
+
+      var ndkRoot = File(compilerPath)
+          .parent
+          .parent
+          .uri
+          .toFilePath(windows: true)
+          .replaceAll("//", "/");
+
+      var stlPath = File([
+        ndkRoot,
+        "sysroot",
+        "usr",
+        "lib",
+        targetArch,
+        "libc++_shared.so"
+      ].join(Platform.pathSeparator));
+
+      if (!stlPath.existsSync()) {
+        stlPath =
+            File(stlPath.path.replaceAll("arm64-v8a", "aarch64-linux-android"));
+      }
+      output.addAsset(NativeCodeAsset(
+          package: packageName,
+          name: "libc++_shared.so",
+          linkMode: DynamicLoadingBundled(),
+          os: config.targetOS,
+          file: stlPath.uri,
+          architecture: config.targetArchitecture));
+    }
   });
 }
 
@@ -93,12 +158,11 @@ String _getLibraryUrl(String platform, String mode, String arch) {
 //
 // Download precompiled Cesium Native libraries for the target platform from Cloudflare.
 //
-Future<Directory> getLibDir(BuildConfig config, Logger logger) async {
+Future<Directory> getLibDir(
+    BuildConfig config, Logger logger, String targetArch) async {
   var platform = config.targetOS.toString().toLowerCase();
 
   var mode = "release";
-
-  final targetArch = config.targetArchitecture?.toString() ?? "arm64";
 
   var libDir = Directory(
       "${config.packageRoot.toFilePath()}/.dart_tool/cesium_3d_native/lib/$_cesiumNativeVersion/$platform/$mode/${targetArch}");
@@ -129,7 +193,13 @@ Future<Directory> getLibDir(BuildConfig config, Logger logger) async {
 
     await response.pipe(libraryZip.openWrite());
 
-    final archive = ZipDecoder().decodeBytes(await libraryZip.readAsBytes());
+    late Archive archive;
+
+    try {
+      archive = ZipDecoder().decodeBytes(await libraryZip.readAsBytes());
+    } catch (err) {
+      throw Exception("Failed to decode archive at ${libraryZip.path} : $err");
+    }
 
     for (final file in archive) {
       final filename = file.name;
