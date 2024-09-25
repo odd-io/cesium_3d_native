@@ -90,11 +90,19 @@ public:
             if (!curl) {
                 throw std::runtime_error("Failed to initialize CURL");
             }
+            char *capath = NULL;
+            curl_easy_getinfo(curl, CURLINFO_CAPATH, capath);
+            if(capath) {
+                spdlog::default_logger()->info("ca path{}", capath);
+            } else { 
+                spdlog::default_logger()->info("NO CA PATH SET");
+            }
             curl_easy_setopt(curl, CURLOPT_FRESH_CONNECT, 1L);
             // curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
             curl_easy_setopt(curl, CURLOPT_SSL_SESSIONID_CACHE, 0L);
             curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
             curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
+            curl_easy_setopt(curl, CURLOPT_CAPATH, "/etc/security/cacerts/");
             curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
             curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, verb.c_str());
             curl_easy_setopt(curl, CURLOPT_ACCEPT_ENCODING, "");
@@ -121,15 +129,18 @@ public:
             }
 
             std::vector<uint8_t> responseData;
+            char errbuf[CURL_ERROR_SIZE];
+            curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errbuf);
             curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
             curl_easy_setopt(curl, CURLOPT_WRITEDATA, &responseData);
             
             CURLcode res = curl_easy_perform(curl);
 
             if (res != CURLE_OK) {
-                std::cout << "CURL Failed!" << std::endl;
-                std::cout << "Error: " << curl_easy_strerror(res) << std::endl;
-                std::cout << "Response body: " << std::string(responseData.begin(), responseData.end()) << std::endl;
+                spdlog::default_logger()->error("CURL Failed!  Error: {}", curl_easy_strerror(res));
+                spdlog::default_logger()->error("Response body: {}", std::string(responseData.begin(), responseData.end()));
+                spdlog::default_logger()->error("{}", errbuf);
+
                 curl_easy_cleanup(curl);
                 curl_slist_free_all(chunk);
                 throw std::runtime_error(curl_easy_strerror(res));
