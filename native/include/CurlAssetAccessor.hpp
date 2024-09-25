@@ -92,11 +92,6 @@ public:
             }
             char *capath = NULL;
             curl_easy_getinfo(curl, CURLINFO_CAPATH, capath);
-            if(capath) {
-                spdlog::default_logger()->info("ca path{}", capath);
-            } else { 
-                spdlog::default_logger()->info("NO CA PATH SET");
-            }
             curl_easy_setopt(curl, CURLOPT_FRESH_CONNECT, 1L);
             // curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
             curl_easy_setopt(curl, CURLOPT_SSL_SESSIONID_CACHE, 0L);
