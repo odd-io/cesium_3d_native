@@ -23,4 +23,14 @@ class Cesium3DTile {
   Matrix4 getTransform() {
     return tileset.getTransform(_tile);
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Cesium3DTile &&
+          runtimeType == other.runtimeType &&
+          _tile == other._tile;
+
+  @override
+  int get hashCode => _tile.hashCode;
 }
