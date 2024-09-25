@@ -141,7 +141,7 @@ Note that unlike `cesium_3d_tiles`, `cesium_native` generally returns/expects EC
 
 ## Extending cesium_native 
 
-This package ships with pre-compiled static Cesium Native libraries for iOS, Android and MacOS. 
+This package ships with pre-compiled static Cesium Native libraries (arm64 only) for iOS, Android and MacOS. 
 
 When a Dart/Flutter application that depends on this package is run, the `hook/build.dart` file uses Dart's `native-assets` library to:
 
