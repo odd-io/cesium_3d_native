@@ -52,8 +52,6 @@ enum CesiumTileLoadState {
   Failed
 }
 
-
-
 class CesiumNative {
   // preallocate memory
 
@@ -62,9 +60,6 @@ class CesiumNative {
 
   // int used for lengths
   static late Pointer<Uint32> _length;
-
-  // render content
-  static const int _maxRenderContent = 1024;
 
   static CesiumNative? _instance;
   static CesiumNative get instance {
