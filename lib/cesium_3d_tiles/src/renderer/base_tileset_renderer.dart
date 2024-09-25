@@ -41,7 +41,7 @@ abstract class BaseTilesetRenderer<T> extends TilesetRenderer {
   /// This constructor initializes a periodic timer that updates the renderer
   /// and processes the load queue every 16 milliseconds.
   BaseTilesetRenderer() {
-    _timer = Timer.periodic(const Duration(milliseconds: 8), (_) async {
+    _timer = Timer.periodic(const Duration(milliseconds: 4), (_) async {
       if (_handlingQueue) {
         return;
       }
@@ -81,21 +81,22 @@ abstract class BaseTilesetRenderer<T> extends TilesetRenderer {
 
   Future _load(Cesium3DTile tile) async {
     late T entity;
-    if (!_loaded.contains(tile)) {
-      if (_entities.containsKey(tile)) {
-        throw Exception("FATAL");
-      }
-
-      final data = tile.loadGltf();
-
-      var transform = tile.getTransform();
-
-      entity = await loadGlb(data, transform, tile.tileset);
-
-      _entities[tile] = entity;
-
-      _loaded.add(tile);
+    if (_loaded.contains(tile)) {
+      return;
     }
+    if (_entities.containsKey(tile)) {
+      throw Exception("FATAL");
+    }
+
+    final data = tile.loadGltf();
+
+    var transform = tile.getTransform();
+
+    entity = await loadGlb(data, transform, tile.tileset);
+
+    _entities[tile] = entity;
+
+    _loaded.add(tile);
 
     await _reveal(tile);
   }
