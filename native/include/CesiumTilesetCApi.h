@@ -5,13 +5,14 @@
 #define GLM_FORCE_EXPLICIT_CTOR 
 #define GLM_FORCE_SIZE_T_LENGTH 
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
+namespace DartCesiumNative {
 #else
 typedef int bool;    
 #endif
-
-#include <stdint.h>
 
 // Here we define structs that act as opaque pointers to various Cesium native C++ classes.
 // These can be safely passed to/from the Dart/C API boundary; on the native side, 
@@ -213,6 +214,7 @@ uint8_t* CesiumGltfModel_serialize(CesiumGltfModel* opaqueModel, uint32_t* lengt
 void CesiumGltfModel_free_serialized(uint8_t* serialized);
 
 #ifdef __cplusplus
+}
 }
 #endif
 
