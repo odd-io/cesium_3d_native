@@ -9,8 +9,13 @@
 #include <CesiumGeometry/BoundingSphere.h>
 #include <CesiumGeometry/OrientedBoundingBox.h>
 #include <CesiumGeospatial/BoundingRegion.h>
+#include <CesiumGeospatial/Ellipsoid.h>
 #include <CesiumGltfWriter/GltfWriter.h>
 #include <CesiumGltfContent/GltfUtilities.h>
+
+#ifdef __ANDROID__
+#include "spdlog/sinks/android_sink.h"
+#endif
 
 #include <memory>
 #include <optional>
@@ -25,6 +30,7 @@
 
 #include "CurlAssetAccessor.hpp"
 #include "PrepareRenderer.hpp"
+#include "Base64Encode.hpp"
 
 #include <openssl/bio.h>
 #include <openssl/evp.h>
@@ -33,15 +39,10 @@
 #include <cstring>
 
 #include <glm/ext/matrix_transform.hpp>
-
-
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/async.h>
 #include <spdlog/sinks/basic_file_sink.h>
-
-
-using namespace Cesium3DTilesSelection;
 
 #include <queue>
 #include <mutex>
@@ -50,26 +51,9 @@ using namespace Cesium3DTilesSelection;
 #include <atomic>
 #include <functional>
 
-std::string base64_encode(const unsigned char* input, int length) {
-    BIO *bio, *b64;
-    BUF_MEM *bufferPtr;
+namespace DartCesiumNative {
 
-    b64 = BIO_new(BIO_f_base64());
-    bio = BIO_new(BIO_s_mem());
-    bio = BIO_push(b64, bio);
-
-    BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL); // Ignore newlines - write everything in one line
-    BIO_write(bio, input, length);
-    BIO_flush(bio);
-    BIO_get_mem_ptr(bio, &bufferPtr);
-    BIO_set_close(bio, BIO_NOCLOSE);
-    BIO_free_all(bio);
-
-    std::string output(bufferPtr->data, bufferPtr->length);
-    BUF_MEM_free(bufferPtr);
-
-    return output;
-}
+    using namespace Cesium3DTilesSelection;
 
 class SimpleTaskProcessor : public CesiumAsync::ITaskProcessor {
 public:
@@ -142,12 +126,15 @@ void CesiumTileset_initialize() {
     if(_initialized) {
         return;
     }
- 
     asyncSystem = CesiumAsync::AsyncSystem {  std::make_shared<SimpleTaskProcessor>() };
 
     pResourcePreparer = std::dynamic_pointer_cast<Cesium3DTilesSelection::IPrepareRendererResources>(std::make_shared<SimplePrepareRendererResource>());
 
+    #ifdef __ANDROID__
+    auto console = spdlog::android_logger_mt("cesium_logger", "cesium_native");
+    #else
     auto console = spdlog::stdout_color_mt("cesium_logger");
+    #endif
     spdlog::set_default_logger(console);
 
     // Set the log level (optional)
@@ -200,6 +187,7 @@ CesiumTileset* CesiumTileset_create(const char* url, void(*onRootTileAvailableEv
 }
 
 CesiumTileset* CesiumTileset_createFromIonAsset(int64_t assetId, const char* accessToken, void(*onRootTileAvailableEvent)()) {
+
     auto pAssetAccessor = std::dynamic_pointer_cast<CesiumAsync::IAssetAccessor>(std::make_shared<CurlAssetAccessor>(accessToken));
 
     auto pMockedCreditSystem = std::make_shared<CesiumUtility::CreditSystem>();
@@ -265,13 +253,16 @@ void CesiumTileset_destroy(CesiumTileset* tileset, void(*onTileDestroyEvent)()) 
 int CesiumTileset_updateView(CesiumTileset* tileset, const CesiumViewState viewState, float deltaTime) {
     if (!tileset) return -1;
 
+    auto ellipsoid = CesiumGeospatial::Ellipsoid::WGS84;
+
     Cesium3DTilesSelection::ViewState cesiumViewState = Cesium3DTilesSelection::ViewState::create(
         glm::dvec3(viewState.position[0], viewState.position[1], viewState.position[2]),
         glm::dvec3(viewState.direction[0], viewState.direction[1], viewState.direction[2]),
         glm::dvec3(viewState.up[0], viewState.up[1], viewState.up[2]),
         glm::dvec2(viewState.viewportWidth, viewState.viewportHeight),
         viewState.horizontalFov,
-        viewState.horizontalFov * viewState.viewportHeight / viewState.viewportWidth
+        viewState.horizontalFov * viewState.viewportHeight / viewState.viewportWidth,
+        ellipsoid
     );
 
     tileset->lastUpdateResult = tileset->tileset->updateView({cesiumViewState}, deltaTime);
@@ -300,13 +291,17 @@ float CesiumTileset_computeLoadProgress(CesiumTileset* tileset) {
 
 
 CesiumCartographic CesiumTileset_getPositionCartographic(CesiumViewState viewState) {
+
+    auto ellipsoid = CesiumGeospatial::Ellipsoid::WGS84;
+
     Cesium3DTilesSelection::ViewState cesiumViewState = Cesium3DTilesSelection::ViewState::create(
         glm::dvec3(viewState.position[0], viewState.position[1], viewState.position[2]),
         glm::dvec3(viewState.direction[0], viewState.direction[1], viewState.direction[2]),
         glm::dvec3(viewState.up[0], viewState.up[1], viewState.up[2]),
         glm::dvec2(viewState.viewportWidth, viewState.viewportHeight),
         viewState.horizontalFov,
-        viewState.horizontalFov * viewState.viewportHeight / viewState.viewportWidth
+        viewState.horizontalFov * viewState.viewportHeight / viewState.viewportWidth,
+        ellipsoid
     );
     CesiumCartographic position;
     if(cesiumViewState.getPositionCartographic()) {
@@ -564,13 +559,16 @@ CesiumBoundingVolume CesiumTile_getBoundingVolume(CesiumTile* cesiumTile, bool c
 }
 
 double CesiumTile_squaredDistanceToBoundingVolume(CesiumTile* oTile, CesiumViewState oViewState) {
+    auto ellipsoid = CesiumGeospatial::Ellipsoid::WGS84;
+
     Cesium3DTilesSelection::ViewState viewState = Cesium3DTilesSelection::ViewState::create(
         glm::dvec3(oViewState.position[0], oViewState.position[1], oViewState.position[2]),
         glm::dvec3(oViewState.direction[0], oViewState.direction[1], oViewState.direction[2]),
         glm::dvec3(oViewState.up[0], oViewState.up[1], oViewState.up[2]),
         glm::dvec2(oViewState.viewportWidth, oViewState.viewportHeight),
         oViewState.horizontalFov,
-        oViewState.horizontalFov * oViewState.viewportHeight / oViewState.viewportWidth
+        oViewState.horizontalFov * oViewState.viewportHeight / oViewState.viewportWidth,
+        ellipsoid
     );
     
     Cesium3DTilesSelection::Tile* tile = reinterpret_cast<Cesium3DTilesSelection::Tile*>(oTile);
@@ -788,4 +786,5 @@ void CesiumGltfModel_free_serialized(uint8_t* data) {
     free(data);
 }
 
+}
 }
