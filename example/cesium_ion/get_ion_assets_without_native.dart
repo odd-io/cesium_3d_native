@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:cesium_3d_tiles/cesium_ion/cesium_ion.dart';
+import 'package:cesium_3d_tiles/src/cesium_ion/cesium_ion.dart';
 import 'package:http/http.dart' as http;
 
 ///

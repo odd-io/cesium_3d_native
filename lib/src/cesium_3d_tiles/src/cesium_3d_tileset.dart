@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
-import 'package:cesium_3d_tiles/cesium_native/cesium_native.dart';
+import 'package:cesium_3d_tiles/src/cesium_native/cesium_native.dart';
 import 'cesium_3d_tile.dart';
 import 'transforms.dart';
 import 'package:vector_math/vector_math_64.dart';

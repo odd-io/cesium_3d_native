@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:cesium_3d_tiles/cesium_3d_tiles/cesium_3d_tiles.dart';
+import 'package:cesium_3d_tiles/src/cesium_3d_tiles/cesium_3d_tiles.dart';
 import 'package:vector_math/vector_math_64.dart';
 import '../../cesium_native/src/cesium_native.dart';
 export '../../cesium_native/src/cesium_tile_selection_state.dart';

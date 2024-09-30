@@ -1,6 +1,6 @@
 import 'dart:async';
-import 'package:cesium_3d_tiles/cesium_3d_tiles/src/cesium_3d_tileset.dart';
-import 'package:cesium_3d_tiles/cesium_3d_tiles/src/renderer/markers.dart';
+import 'package:cesium_3d_tiles/src/cesium_3d_tiles/src/cesium_3d_tileset.dart';
+import 'package:cesium_3d_tiles/src/cesium_3d_tiles/src/renderer/markers.dart';
 import 'package:vector_math/vector_math_64.dart';
 
 ///

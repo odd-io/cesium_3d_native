@@ -2,10 +2,10 @@ import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
 
-import 'package:cesium_3d_tiles/cesium_3d_tiles/src/cesium_3d_tileset.dart';
-import 'package:cesium_3d_tiles/cesium_3d_tiles/src/renderer/markers.dart';
-import 'package:cesium_3d_tiles/cesium_3d_tiles/src/renderer/tileset_renderer.dart';
-import 'package:cesium_3d_tiles/cesium_native/src/cesium_native.dart';
+import 'package:cesium_3d_tiles/src/cesium_3d_tiles/src/cesium_3d_tileset.dart';
+import 'package:cesium_3d_tiles/src/cesium_3d_tiles/src/renderer/markers.dart';
+import 'package:cesium_3d_tiles/src/cesium_3d_tiles/src/renderer/tileset_renderer.dart';
+import 'package:cesium_3d_tiles/src/cesium_native/src/cesium_native.dart';
 import 'package:vector_math/vector_math_64.dart';
 
 import '../cesium_3d_tile.dart';

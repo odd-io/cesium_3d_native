@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:cesium_3d_tiles/cesium_native/cesium_native.dart';
+import 'package:cesium_3d_tiles/src/cesium_native/cesium_native.dart';
 import 'package:vector_math/vector_math_64.dart';
 
 
