@@ -51,14 +51,6 @@ abstract class TilesetRenderer<T> {
   /// @return A Future that completes when the matrix is set.
   Future setCameraModelMatrix(Matrix4 modelMatrix);
 
-  // /// Animates the camera from its current position to [target].
-  // ///
-  // /// @param [target] The position (in glTF coordinates) to zoom to.
-  // /// @param duration The duration of the zoom animation.
-  // /// @return A Future that completes when the zoom animation is finished.
-  // Future zoomTo(Vector3 target,
-  //     {Duration duration = const Duration(seconds: 1)});
-
   ///
   /// This method loads/inserts renderable tile content (as a glTF) into the
   /// scene.
@@ -100,6 +92,8 @@ abstract class TilesetRenderer<T> {
   /// @param marker The marker to load and insert into the scene.
   /// @return A Future that resolves to the loaded entity.
   Future<T> loadMarker(RenderableMarker marker);
+
+
 
   /// Zooms the camera to focus on a specific layer.
   ///

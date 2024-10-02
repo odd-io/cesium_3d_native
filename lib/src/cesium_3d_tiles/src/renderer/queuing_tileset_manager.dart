@@ -107,6 +107,7 @@ class QueueingTilesetManager<T> extends TilesetManager {
     }
   }
 
+  @override
   void markDirty() {
     _cameraDirty = true;
   }
@@ -154,6 +155,7 @@ class QueueingTilesetManager<T> extends TilesetManager {
     }
     _layers[layer] = <CesiumTile>[];
     renderer.setLayerVisibility(layer.renderLayer, true);
+    _renderable[layer] = <Cesium3DTile>{};
   }
 
   ///
@@ -233,68 +235,7 @@ class QueueingTilesetManager<T> extends TilesetManager {
   }
 
 
-  /// Resets the camera orientation such that it is looking at the root tile.
-  ///
-  /// In this implementation, the camera always looks at the origin.
-  /// This method sets its position is determined by taking the center of
-  /// the root tile of the first layer loaded,
-  /// then translating along the forward vector by the ratio between the
-  /// distance from the origin and the Z extent of the bounding volume.
-  ///
-  /// This achieves a reasonable starting position for the camera, so that
-  /// the entirety of the root tile of the first layer is visible on load.
-  ///
-  /// @param tileset The tileset to use for determining the root position.
-  /// @param offset Whether to apply an offset to the camera position.
-  /// @return A Future that completes when the camera position is set.
-  @override
-  Future<Matrix4> getCameraPositionForTileset(Cesium3DTileset tileset,
-      {bool offset = false}) async {
-    if (tileset.rootTile == null || tileset.isRootTileLoaded() == false) {
-      throw Exception("Root tile not set or not yet loaded");
-    }
-
-    return _getCameraTransformForTile(tileset, offset: offset);
-
-  }
-
-  Future<Matrix4> _getCameraTransformForTile(Cesium3DTileset tileset,
-      {bool offset = true}) async {
-    var position = tileset.getTileCenter(tileset.rootTile!);
-    if (position == null) {
-      throw Exception(
-          "Could not fetch root camera position; has the root tile been loaded?");
-    }
-
-    if (offset) {
-      var extent = tileset.getExtent(tileset.rootTile!);
-      if (position.length == 0) {
-        position = extent;
-      }
-      // Calculate the direction vector from the center to the position
-      Vector3 direction = position.normalized();
-
-      // Scale the direction vector by the extent
-      Vector3 offsetVector = direction * extent.length;
-
-      // Apply the offset to the position
-      position += offsetVector;
-    }
-
-    Vector3 forward =
-        position.length == 0 ? Vector3(0, 0, -1) : (-position).normalized();
-
-    var up = Vector3(0, 1, 0);
-    final right = up.cross(forward)..normalize();
-    up = forward.cross(right);
-
-    // Create the model matrix
-    Matrix4 viewMatrix = makeViewMatrix(position, Vector3.zero(), up);
-    viewMatrix.invert();
-
-    return viewMatrix;
-  }
-
+  
   Future _hide(Cesium3DTile tile) async {
     var entity = _entities[tile];
     // we may call this method before the tile content is actually loaded
@@ -314,7 +255,7 @@ class QueueingTilesetManager<T> extends TilesetManager {
     }
   }
 
-  final _renderable = <Cesium3DTile>{};
+  final _renderable = <Cesium3DTileset, Set<Cesium3DTile>>{};
 
   bool _updating = false;
 
@@ -335,60 +276,39 @@ class QueueingTilesetManager<T> extends TilesetManager {
           .toSet();
 
       // if any tiles are no longer renderable, we can remove them straight away
-      var disjunction = renderable.difference(_renderable);
+      var disjunction = renderable.difference(_renderable[layer]!);
       for (var tile in disjunction) {
         await _remove(tile);
       }
 
-      _renderable.clear();
-      _renderable.addAll(renderable);
+      _renderable[layer]!.clear();
+      _renderable[layer]!.addAll(renderable);
 
-      for (var tile in _renderable) {
+      for (var tile in _renderable[layer]!) {
         switch (tile.state) {
           case CesiumTileSelectionState.Rendered:
             if (!_loaded.contains(tile)) {
               _loadQueue.add(tile);
             }
-            await _reveal(tile);
-
           case CesiumTileSelectionState.Refined:
-          //noop
-          // await _hide(tile);
-          // _loadQueue.remove(tile);
-          // await _hide(tile);
-          // if (_loaded.contains(tile)) {
-          //   await _remove(tile);
-          // }
-
+            _loadQueue.remove(tile);
+            if (_loaded.contains(tile)) {
+              _cullQueue.add(tile);
+            }
           case CesiumTileSelectionState.Culled:
-            await _hide(tile);
-
-          // _loadQueue.remove(tile);
-          // if (_loaded.contains(tile)) {
-          //   _cullQueue.add(tile);
-          // }
-          // _hide(tile);
+            _loadQueue.remove(tile);
+            if (_loaded.contains(tile)) {
+              _cullQueue.add(tile);
+            }
           case CesiumTileSelectionState.None:
-          // await _hide(tile);
-          // _loadQueue.remove(tile);
-          // if (_loaded.contains(tile)) {
-          //   _cullQueue.add(tile);
-          // }
-          // _hide(tile);
-
-          //noop
+            _loadQueue.remove(tile);
+            if (_loaded.contains(tile)) {
+              _cullQueue.add(tile);
+            }
           case CesiumTileSelectionState.RenderedAndKicked:
-          // _loadQueue.remove(tile);
-          // _hide(tile);
-          // if (_loaded.contains(tile)) {
-          //   _cullQueue.add(tile);
-          // }
+            _loadQueue.remove(tile);
           case CesiumTileSelectionState.RefinedAndKicked:
-          // _loadQueue.remove(tile);
-          // _hide(tile);
-          // if (_loaded.contains(tile)) {
-          //   _cullQueue.add(tile);
-          // }
+            _loadQueue.remove(tile);
         }
       }
     }

@@ -171,13 +171,14 @@ CesiumTileset* CesiumTileset_create(const char* url, void(*onRootTileAvailableEv
 
     externals.pAssetAccessor = pAssetAccessor;
     externals.pPrepareRendererResources = pResourcePreparer;
-
+    
+    // TODO - pass these in as arguments
     TilesetOptions options;
     options.forbidHoles = true;
     options.lodTransitionLength = 0.0f;
-    options.enableOcclusionCulling = false;
-    options.enableFogCulling = false;
-    options.enableFrustumCulling = false;
+    options.enableOcclusionCulling = true;
+    options.enableFogCulling = true;
+    options.enableFrustumCulling = true;
 
     auto pTileset = new CesiumTileset();
     options.loadErrorCallback = [=](const TilesetLoadFailureDetails& details) {
@@ -211,11 +212,12 @@ CesiumTileset* CesiumTileset_createFromIonAsset(int64_t assetId, const char* acc
       asyncSystem,
       pMockedCreditSystem};
 
+    // TODO - pass these in as arguments
     TilesetOptions options;
     options.forbidHoles = true;
     options.lodTransitionLength = 0.0f;
-    options.enableOcclusionCulling = false;
-    options.enableFogCulling = false;
+    options.enableOcclusionCulling = true;
+    options.enableFogCulling = true;
     options.enableFrustumCulling = true;
 
     auto pTileset = new CesiumTileset();
