@@ -55,9 +55,9 @@ However, most users should work directly with the [Cesium3DTileset] provided by 
 
 It's also important to note that this package *does not provide any actual rendering capabiility*. The `cesium_native` library doesn't interact directly with a rendering surface - camera parameters go in, and a list of renderable tiles comes out.
 
-The `cesium_3d_tiles` library includes the `TilesetRenderer` interface, which describes a set of methods that you could use to render a multiple `Cesium3DTileset` instances to a rendering surface. The library also provides a partial implementation `BaseTilesetRenderer`, using `cesium_native` to load a tileset and manage tile content, but requires that you implement the rendering-specific logic yourself. 
+The `cesium_3d_tiles` library includes the `TilesetManager` interface, which describes a set of methods that you could use to render a multiple `Cesium3DTileset` instances to a rendering surface. The library also provides an example implementation of `QueuingTilesetManager` that uses a queue to manage/kick tiles, using `cesium_native` to load a tileset and manage tile content. Note that this requires you to implement the `TilesetRenderer` interface to provide an actual implementation of the rendering logic. 
 
-The intention is that end users create their own apps that depend on `cesium_3d_tiles`, and that extend `BaseTilesetRenderer` to implement the abstract methods with a specific rendering library. You can [click here to see an example Flutter application](https://TODO) that uses the [Thermion](https://thermion.dev) rendering library to implement these abstract methods.
+The intention is that end users create their own apps that depend on `cesium_3d_tiles`, and that extend `TilesetRenderer` to implement the abstract methods with a specific rendering library. You can [click here to see an example Flutter application](https://TODO) that uses the [Thermion](https://thermion.dev) rendering library to implement these abstract methods.
 
 ## Getting started
 
@@ -124,7 +124,7 @@ print("${renderableTiles.length} renderable tiles");
   }
 ```
 
-You will see that there is no actual viewport or rendering logic here - this is why we suggest extending `BaseTilesetRenderer` to implement your own.
+You will see that there is no actual viewport or rendering logic here; we suggest extending `TilesetRenderer` to implement your own.
 
 ### cesium_native
 

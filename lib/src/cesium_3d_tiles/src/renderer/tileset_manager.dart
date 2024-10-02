@@ -4,8 +4,8 @@ import 'package:cesium_3d_tiles/src/cesium_3d_tiles/src/renderer/markers.dart';
 import 'package:vector_math/vector_math_64.dart';
 
 ///
-/// A [TilesetRenderer] connects instances of [Cesium3DTileset] to an actual
-/// scene/viewport/camera.
+/// A [TilesetManager] is an interface for loading [Cesium3DTileset] layers
+/// and determining when/how to insert tiles into a scene.
 ///
 /// Implementations must regularly call [updateCameraAndViewport] (with the
 /// current camera matrices) on all instances of [Cesium3DTileset] added
@@ -52,7 +52,6 @@ abstract class TilesetManager {
   /// @param tileset The tileset to use for determining the root position.
   /// @param offset Whether to apply an offset to the camera position.
   /// @return A Future that completes when the camera position is set.
-  @override
   Future<Matrix4> getCameraPositionForTileset(Cesium3DTileset tileset,
       {bool offset = false}) async {
     if (tileset.rootTile == null || tileset.isRootTileLoaded() == false) {

@@ -7,12 +7,8 @@ import 'package:vector_math/vector_math_64.dart';
 import 'markers.dart';
 
 ///
-/// A [TilesetRenderer] connects instances of [Cesium3DTileset] to an actual
-/// scene/viewport/camera.
-///
-/// Implementations must regularly call [updateCameraAndViewport] (with the
-/// current camera matrices) on all instances of [Cesium3DTileset] added
-/// via [addLayer].
+/// A [TilesetRenderer] is intended for use by a [TilesetManager] to actually
+/// render tiles to a scene/viewport.
 ///
 /// If any [Cesium3DTileset] has renderable content, implementations must
 /// add that to the current scene (note that currently this will always be glTF).

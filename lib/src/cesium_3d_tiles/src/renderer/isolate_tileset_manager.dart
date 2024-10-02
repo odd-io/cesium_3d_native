@@ -9,6 +9,22 @@ import 'package:vector_math/vector_math_64.dart';
 import 'tileset_manager.dart';
 import 'tileset_renderer.dart';
 
+///
+/// Below is an example implementation of a TilesetManager that runs on a 
+/// background isolate.
+/// 
+/// However, we currently cannot pin isolates to threads, meaning that 
+/// any cesium_native functions may be called on different threads at any 
+/// given time. This is not permitted by the cesium_native library.
+///
+/// This implementation therefore won't be usable until isolate-pinning is 
+/// available in Dart/Flutter.
+/// 
+/// https://github.com/dart-lang/sdk/issues/46943
+///
+///
+
+
 void _isolateEntryPoint(List<dynamic> message) {
   SendPort mainSendPort = message[0] as SendPort;
 
