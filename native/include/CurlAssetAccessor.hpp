@@ -90,14 +90,17 @@ public:
             if (!curl) {
                 throw std::runtime_error("Failed to initialize CURL");
             }
-            char *capath = NULL;
-            curl_easy_getinfo(curl, CURLINFO_CAPATH, capath);
+            
             curl_easy_setopt(curl, CURLOPT_FRESH_CONNECT, 1L);
             // curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
             curl_easy_setopt(curl, CURLOPT_SSL_SESSIONID_CACHE, 0L);
             curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
             curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
+            #ifdef __ANDROID_API__
+            char *capath = NULL;
+            curl_easy_getinfo(curl, CURLINFO_CAPATH, capath);
             curl_easy_setopt(curl, CURLOPT_CAPATH, "/etc/security/cacerts/");
+            #endif
             curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
             curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, verb.c_str());
             curl_easy_setopt(curl, CURLOPT_ACCEPT_ENCODING, "");

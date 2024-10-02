@@ -16,7 +16,7 @@ void main(List<String> args) async {
   var tileset = await CesiumNative.instance.loadFromUrl(url);
 
   var view = CesiumView(
-      Vector3(0, 0, 1000), Vector3(0, 0, -1), Vector3(0, 1, 0), 500, 500, 45);
+      Vector3(0, 0, 1000), Vector3(0, 0, -1), Vector3(0, 1, 0), 500, 500, 45, 45);
 
   var numToRender = CesiumNative.instance.updateTilesetView(tileset, view);
 

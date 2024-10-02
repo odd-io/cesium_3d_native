@@ -36,8 +36,8 @@ class Cesium3DTileset {
   /// Markers are always at render layer 0, this should be between 1 and 6 (inclusive).
   final RenderLayer renderLayer;
 
-  late CesiumView _view =
-      CesiumView(Vector3.zero(), Vector3.zero(), Vector3.zero(), 0, 0, 0);
+  CesiumView _view =
+      CesiumView(Vector3.zero(), Vector3(0,0,-1), Vector3(0,1,0), 100, 100, pi/4,pi/4);
 
   CesiumTile? _rootTile;
 
@@ -53,7 +53,9 @@ class Cesium3DTileset {
   ///
   ///
   ///
-  Cesium3DTileset._(this._tileset, this.renderLayer, {this.debugName});
+  Cesium3DTileset._(this._tileset, this.renderLayer, {this.debugName}) {
+    CesiumNative.instance.updateTilesetView(_tileset, _view);
+  }
 
   static Future<Cesium3DTileset> fromUrl(String url,
       {RenderLayer renderLayer = RenderLayer.layer0}) async {
@@ -147,12 +149,13 @@ class Cesium3DTileset {
   ///
   ///
   Iterable<Cesium3DTile> updateCameraAndViewport(
-      Matrix4 modelMatrix,
-      Matrix4 projectionMatrix,
+      Matrix4 cameraModelMatrix,
+      double horizontalFovInRadians,
+      double verticalFovInRadians,
       double viewportWidth,
       double viewportHeight) sync* {
     // Extract the position from the matrix
-    var gltfPosition = modelMatrix.getTranslation();
+    var gltfPosition = cameraModelMatrix.getTranslation();
 
     var transform = gltfToEcef;
     Vector3 position = transform * gltfPosition;
@@ -161,13 +164,18 @@ class Cesium3DTileset {
         (gltfPosition.length == 0 ? Vector3(0, 0, -1) : -gltfPosition);
     forward.normalize();
 
-    double horizontalFov =
-        _getHorizontalFovFromProjectionMatrix(projectionMatrix);
-    _view = CesiumView(
-        position, forward, up, viewportWidth, viewportHeight, horizontalFov);
-    CesiumNative.instance.updateTilesetView(_tileset, _view);
+    var right = up.cross(forward).normalized();
+    up = forward.cross(right);
 
-    if (_rootTile != null) {
+    if (forward.length == 0) {
+      throw Exception("Camera update failed");
+    }
+
+    _view = CesiumView(
+        position, forward, up, viewportWidth, viewportHeight, horizontalFovInRadians, verticalFovInRadians);
+    var renderableTileCount = CesiumNative.instance.updateTilesetView(_tileset, _view);
+
+    if (_rootTile != null && renderableTileCount > 0) {
       final renderableTiles =
           CesiumNative.instance.getRenderableTiles(_rootTile!);
       for (final tile in renderableTiles) {
@@ -180,10 +188,14 @@ class Cesium3DTileset {
 
   final _models = <CesiumTile, SerializedCesiumGltfModel>{};
 
-  Uint8List loadGltf(CesiumTile tile) {
+  Future<Uint8List?> loadGltf(CesiumTile tile) async {
     if (!_models.containsKey(tile)) {
       var model = CesiumNative.instance.getModel(tile);
-      var serialized = CesiumNative.instance.serializeGltfData(model);
+      if (model == null) {
+        print("Failed to load");
+        return null;
+      }
+      var serialized = await CesiumNative.instance.serializeGltfData(model);
       _models[tile] = serialized;
     }
     return _models[tile]!.data;
@@ -229,25 +241,4 @@ class Cesium3DTileset {
         localOffset.z.abs() > 1.0;
   }
 
-  /// Extracts the horizontal field of view from a projection matrix
-  static double _getHorizontalFovFromProjectionMatrix(
-      Matrix4 projectionMatrix) {
-    // Get the first element of the projection matrix
-    double m00 = projectionMatrix.entry(0, 0);
-
-    // Calculate the horizontal FOV
-    double horizontalFov = 2 * atan(1 / m00);
-
-    return horizontalFov;
-  }
-
-  void getRootTileSelectionState() {
-    final renderableTiles = CesiumNative.instance.getRenderableTiles(rootTile!);
-    print(CesiumNative.instance.getSelectionState(_tileset, rootTile!));
-    for (final tile in renderableTiles) {
-      print(CesiumNative.instance.getSelectionState(_tileset, tile));
-      var model = CesiumNative.instance.getModel(tile);
-      print(CesiumNative.instance.getGltfTransform(model));
-    }
-  }
 }

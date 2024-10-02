@@ -1,4 +1,4 @@
-output: 'lib/cesium_native/src/cesium_native.g.dart'
+output: 'lib/src/cesium_native/src/cesium_native.g.dart'
 headers:
   entry-points:
     - 'native/include/CesiumTilesetCApi.h'

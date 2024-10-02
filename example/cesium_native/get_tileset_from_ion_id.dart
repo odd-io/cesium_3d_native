@@ -25,7 +25,7 @@ void main(List<String> args) async {
 
   // create a random camera view for testing purposes
   var view = CesiumView(Vector3(0, 0, 1000), Vector3(0, 0, -1),
-      Vector3(0, 1, 0), 500, 500, pi / 4);
+      Vector3(0, 1, 0), 500, 500, pi / 4, pi / 4, );
 
   // update
   CesiumNative.instance.updateTilesetView(tileset, view);
@@ -47,7 +47,7 @@ void main(List<String> args) async {
 
   final forward = -(cameraPosition - rootPosition).normalized();
 
-  view = CesiumView(cameraPosition, forward.xyz, up, 500, 500, pi / 4);
+  view = CesiumView(cameraPosition, forward.xyz, up, 500, 500, pi / 4, pi / 4);
   for (int i = 0; i < 10; i++) {
     await Future.delayed(Duration(milliseconds: 500));
     var toRender = CesiumNative.instance.updateTilesetView(tileset, view);
@@ -55,7 +55,7 @@ void main(List<String> args) async {
     for (final tile in renderable) {
       var model = CesiumNative.instance.getModel(tile);
       print(CesiumNative.instance.getTransform(tile));
-      var gltf = CesiumNative.instance.serializeGltfData(model);
+      var gltf = await CesiumNative.instance.serializeGltfData(model!);
       gltf.free();
     }
     if (renderable.length > 0) break;

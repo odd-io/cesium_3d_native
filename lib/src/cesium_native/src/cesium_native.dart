@@ -4,7 +4,8 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:cesium_3d_tiles/src/cesium_native/src/cartographic_position.dart';
-import 'package:cesium_3d_tiles/src/cesium_native/src/cesium_native.g.dart' as g;
+import 'package:cesium_3d_tiles/src/cesium_native/src/cesium_native.g.dart'
+    as g;
 import 'package:cesium_3d_tiles/src/cesium_native/src/cesium_bounding_volume.dart';
 import 'package:cesium_3d_tiles/src/cesium_native/src/cesium_view.dart';
 import 'package:ffi/ffi.dart';
@@ -22,15 +23,15 @@ typedef CesiumTile = Pointer<g.CesiumTile>;
 typedef CesiumGltfModel = Pointer<g.CesiumGltfModel>;
 
 final class SerializedCesiumGltfModel {
-  final Pointer<Uint8> _ptr;
-  final int _length;
+  final g.SerializedCesiumGltfModel _serialized;
 
-  Uint8List get data => _ptr.asTypedList(_length);
 
-  SerializedCesiumGltfModel(this._ptr, this._length);
+  Uint8List get data => _serialized.data.asTypedList(_serialized.length);
+
+  SerializedCesiumGltfModel(this._serialized);
 
   void free() {
-    g.CesiumGltfModel_free_serialized(_ptr);
+    g.CesiumGltfModel_free_serialized(_serialized);
   }
 }
 
@@ -58,9 +59,6 @@ class CesiumNative {
   // error message
   static late Pointer<Char> _errorMessage;
 
-  // int used for lengths
-  static late Pointer<Uint32> _length;
-
   static CesiumNative? _instance;
   static CesiumNative get instance {
     _instance ??= CesiumNative._();
@@ -68,9 +66,8 @@ class CesiumNative {
   }
 
   CesiumNative._() {
-    g.CesiumTileset_initialize();
+    g.CesiumTileset_initialize(16);
     _errorMessage = calloc<Char>(256);
-    _length = calloc<Uint32>(1);
   }
 
   ///
@@ -152,12 +149,14 @@ class CesiumNative {
     struct.position[1] = view.position[1];
     struct.position[2] = view.position[2];
     struct.horizontalFov = view.horizontalFov;
+    struct.verticalFov = view.verticalFov;
     struct.direction[0] = view.direction[0];
     struct.direction[1] = view.direction[1];
     struct.direction[2] = view.direction[2];
     struct.up[0] = view.up[0];
     struct.up[1] = view.up[1];
     struct.up[2] = view.up[2];
+
     return struct;
   }
 
@@ -340,11 +339,12 @@ class CesiumNative {
   ///
   ///
   ///
-  CesiumGltfModel getModel(CesiumTile tile) {
+  CesiumGltfModel? getModel(CesiumTile tile) {
     var model = g.CesiumTile_getModel(tile);
     if (model == nullptr) {
-      throw Exception(
+      print(
           "Failed to retrieve model. Check that this tile actually has render content.");
+      return null;
     }
     return model;
   }
@@ -371,10 +371,20 @@ class CesiumNative {
     );
   }
 
-  SerializedCesiumGltfModel serializeGltfData(CesiumGltfModel model) {
-    var data = g.CesiumGltfModel_serialize(model, _length);
+  Future<SerializedCesiumGltfModel> serializeGltfData(
+      CesiumGltfModel model) async {
+    var start = DateTime.now();
+    final completer = Completer<SerializedCesiumGltfModel>();
 
-    return SerializedCesiumGltfModel(data, _length.value);
+    final callback =
+        NativeCallable<Void Function(g.SerializedCesiumGltfModel)>.listener(
+            (g.SerializedCesiumGltfModel serialized) {
+      completer.complete(
+          SerializedCesiumGltfModel(serialized));
+    });
+    g.CesiumGltfModel_serializeAsync(model, callback.nativeFunction);
+
+    return completer.future;
   }
 
   CesiumTileSelectionState getSelectionState(

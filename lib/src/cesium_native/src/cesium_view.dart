@@ -11,6 +11,9 @@ class CesiumView {
   /// The horizontal field of view of the camera (in radians)
   final double horizontalFov;
 
+  /// The horizontal field of view of the camera (in radians)
+  final double verticalFov;
+
   CesiumView(this.position, this.direction, this.up, this.viewportWidth,
-      this.viewportHeight, this.horizontalFov);
+      this.viewportHeight, this.horizontalFov, this.verticalFov);
 }

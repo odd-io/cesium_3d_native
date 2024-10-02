@@ -1,9 +1,9 @@
 import 'dart:async';
-import 'dart:math';
-import 'dart:typed_data';
 
 import 'package:cesium_3d_tiles/src/cesium_3d_tiles/src/cesium_3d_tileset.dart';
 import 'package:cesium_3d_tiles/src/cesium_3d_tiles/src/renderer/markers.dart';
+import 'package:cesium_3d_tiles/src/cesium_3d_tiles/src/renderer/tileset_manager.dart';
+
 import 'package:cesium_3d_tiles/src/cesium_3d_tiles/src/renderer/tileset_renderer.dart';
 import 'package:cesium_3d_tiles/src/cesium_native/src/cesium_native.dart';
 import 'package:vector_math/vector_math_64.dart';
@@ -23,43 +23,71 @@ import '../cesium_3d_tile.dart';
 /// The generic parameter [T] is the type of the entity handle returned by the
 /// actual rendering library.
 ///
-abstract class BaseTilesetRenderer<T> extends TilesetRenderer {
+class QueueingTilesetManager<T> extends TilesetManager {
+  
   final _loaded = <Cesium3DTile>{};
-  final _loadQueue = <Cesium3DTile>[];
-  final _cullQueue = <Cesium3DTile>[];
+  final _loadQueue = <Cesium3DTile>{};
+  final _cullQueue = <Cesium3DTile>{};
 
   bool _handlingQueue = false;
-  bool _updateCamera = true;
+  bool _cameraDirty = false;
 
   Timer? _timer;
+  DateTime? _lastTileUpdate;
 
   final _layers = <Cesium3DTileset, List<CesiumTile>>{};
   final _entities = <Cesium3DTile, T>{};
+
+  DateTime _loadBookmark = DateTime.now();
+  int _numLoaded = 0;
+
+  final TilesetRenderer<T> renderer;
 
   /// Creates a new instance of BaseTilesetRenderer.
   ///
   /// This constructor initializes a periodic timer that updates the renderer
   /// and processes the load queue every 16 milliseconds.
-  BaseTilesetRenderer() {
+  QueueingTilesetManager(this.renderer) {
     _timer = Timer.periodic(const Duration(milliseconds: 4), (_) async {
+      // skip all updates if we haven't finished the last iteration
       if (_handlingQueue) {
         return;
       }
 
-      if (viewportDimensions.$1 > 0 && _updateCamera) {
+      var dimensions = await renderer.viewportDimensions;
+      var now = DateTime.now();
+      var msSinceLastTileUpdate = _lastTileUpdate == null
+          ? 9999
+          : now.millisecondsSinceEpoch -
+              _lastTileUpdate!.millisecondsSinceEpoch;
+      if (dimensions.width > 0 &&
+          dimensions.height > 0 &&
+          _cameraDirty &&
+          msSinceLastTileUpdate > 16) {
         await _update();
+        _lastTileUpdate = DateTime.now();
+        _cameraDirty = false;
+        if (_lastTileUpdate!.millisecondsSinceEpoch -
+                _loadBookmark.millisecondsSinceEpoch >
+            1000) {
+          print("_numLoaded $_numLoaded (${_loadQueue.length} left in queue)");
+          _loadBookmark = _lastTileUpdate!;
+          _numLoaded = 0;
+        }
       }
 
       _handlingQueue = true;
 
-      if (_loadQueue.isNotEmpty) {
-        var item = _loadQueue.removeLast();
+      while (_loadQueue.isNotEmpty) {
+        var item = _loadQueue.first;
         await _load(item);
+        _loadQueue.remove(item);
       }
 
-      if (_cullQueue.isNotEmpty) {
-        var tile = _cullQueue.removeLast();
+      while (_cullQueue.isNotEmpty) {
+        var tile = _cullQueue.first;
         await _remove(tile);
+        _cullQueue.remove(tile);
       }
       _handlingQueue = false;
     });
@@ -69,7 +97,7 @@ abstract class BaseTilesetRenderer<T> extends TilesetRenderer {
     if (_loaded.contains(tile)) {
       final entity = _entities[tile];
       if (entity != null) {
-        await removeEntity(entity);
+        await renderer.removeEntity(entity);
       }
 
       _entities.remove(tile);
@@ -79,26 +107,39 @@ abstract class BaseTilesetRenderer<T> extends TilesetRenderer {
     }
   }
 
+  void markDirty() {
+    _cameraDirty = true;
+  }
+
+  final _loading = <Cesium3DTile>{};
+
   Future _load(Cesium3DTile tile) async {
-    late T entity;
-    if (_loaded.contains(tile)) {
+    
+    if (_loaded.contains(tile) || _loading.contains(tile)) {
       return;
     }
     if (_entities.containsKey(tile)) {
       throw Exception("FATAL");
     }
+    _loading.add(tile);
 
-    final data = tile.loadGltf();
+    final data = await tile.loadGltf();
+
+    if (data == null) {
+      return;
+    }
 
     var transform = tile.getTransform();
 
-    entity = await loadGlb(data, transform, tile.tileset);
+    renderer.loadGlb(data, transform, tile.tileset).then((entity) async {
+      _entities[tile] = entity;
 
-    _entities[tile] = entity;
+      _loaded.add(tile);
 
-    _loaded.add(tile);
-
-    await _reveal(tile);
+      await _reveal(tile);
+      _numLoaded++;
+      _loading.remove(tile);
+    });
   }
 
   /// Adds a new [Cesium3DTileset] to the renderer.
@@ -112,7 +153,7 @@ abstract class BaseTilesetRenderer<T> extends TilesetRenderer {
       throw Exception("Layer has already been added");
     }
     _layers[layer] = <CesiumTile>[];
-    setLayerVisibility(layer.renderLayer, true);
+    renderer.setLayerVisibility(layer.renderLayer, true);
   }
 
   ///
@@ -133,51 +174,10 @@ abstract class BaseTilesetRenderer<T> extends TilesetRenderer {
   /// @param marker The marker to be added.
   @override
   Future addMarker(RenderableMarker marker) async {
-    var entity = await loadMarker(marker);
+    var entity = await renderer.loadMarker(marker);
     _markers[entity] = marker;
   }
 
-  ///
-  /// This method loads/inserts renderable tile content (as a glTF) into the
-  /// scene.
-  /// Implementations of this method must:
-  /// - load the glTF content
-  /// - insert into the scene and retrieve an entity handle of type [T]
-  /// - set the global transform for the entity to [transform]
-  /// - set the rendering priority for the entity to the layer's [renderLayer]
-  /// (where 0 is the highest priority, and 7 is the lowest)
-  /// - set the visibility group for the entity to the layer's [renderLayer]
-  ///
-  /// [priority] is used to determine the order in which entities are drawn;
-  /// layers that should appear above other layers should be assigned a higher
-  /// priority.
-  ///
-  /// @param glb The tile's binary glTF data
-  /// @param transform The tile's global transform
-  /// @param priority The rendering priority of the model.
-  /// @return A Future that resolves to the loaded entity.
-  Future<T> loadGlb(Uint8List glb, Matrix4 transform, Cesium3DTileset layer);
-
-  ///
-  /// Loads a marker into the scene and ensures that its [onClick] method
-  /// is called whenever the marker is tapped in the viewport.
-  ///
-  /// @param marker The marker to load and insert into the scene.
-  /// @return A Future that resolves to the loaded entity.
-  Future<T> loadMarker(RenderableMarker marker);
-
-  /// Removes a previously loaded GLB model from the scene.
-  ///
-  /// @param entity The entity to be removed.
-  /// @return A Future that completes when the entity is removed.
-  Future removeEntity(T entity);
-
-  ///
-  /// Sets the visibility of a renderable entity.
-  ///
-  /// This is only intended for use with markers; layer/tile visibility is managed by calling [setLayerVisibility]
-  ///
-  Future setEntityVisibility(T entity, bool visible);
 
   /// Removes a [Cesium3DTileset] and all its associated entities from the renderer.
   ///
@@ -194,7 +194,7 @@ abstract class BaseTilesetRenderer<T> extends TilesetRenderer {
     for (final tile in _layers[layer]!) {
       final entity = _entities[tile];
       if (entity != null) {
-        await removeEntity(entity);
+        await renderer.removeEntity(entity);
       }
     }
 
@@ -203,86 +203,13 @@ abstract class BaseTilesetRenderer<T> extends TilesetRenderer {
     _layers.remove(layer);
   }
 
-  /// Zooms the camera to focus on a specific layer.
-  ///
-  /// This method animates the camera from its current position to a position
-  /// that focuses on the specified layer.
-  ///
-  /// @param layer The layer to zoom to.
-  /// @param duration The duration of the zoom animation.
-  /// @param offset Whether to apply an offset when zooming.
-  /// @return A Future that completes when the zoom animation is finished.
-  @override
-  Future zoomTo(Vector3 target,
-      {Duration duration = const Duration(seconds: 1)}) async {
-    final startPosition = (await cameraModelMatrix).getTranslation();
-
-    final startTime = DateTime.now().millisecondsSinceEpoch;
-    final endTime = startTime + duration.inMilliseconds;
-
-    final completer = Completer();
-
-    _updateCamera = false;
-
-    void animate() {
-      final now = DateTime.now().millisecondsSinceEpoch;
-      if (now >= endTime) {
-        final interpolatedViewMatrix = _createLookAtMatrix(target);
-        interpolatedViewMatrix.invert();
-        setCameraModelMatrix(interpolatedViewMatrix);
-        completer.complete();
-        _updateCamera = true;
-        return;
-      }
-
-      final t = (now - startTime) / duration.inMilliseconds;
-      final easedT = _easeInOutCubic(t);
-
-      final interpolatedPosition = Vector3(
-        _lerp(startPosition.x, target.x, easedT),
-        _lerp(startPosition.y, target.y, easedT),
-        _lerp(startPosition.z, target.z, easedT),
-      );
-
-      final interpolatedViewMatrix = _createLookAtMatrix(interpolatedPosition);
-      interpolatedViewMatrix.invert();
-
-      setCameraModelMatrix(interpolatedViewMatrix);
-      Timer(const Duration(milliseconds: 16), animate);
-    }
-
-    animate();
-    return completer.future;
-  }
-
-  ///
-  ///
-  ///
-  Matrix4 _createLookAtMatrix(Vector3 eyePosition) {
-    final target = Vector3.zero();
-    final up = Vector3(0, 1, 0); // Assuming Y is up
-    return makeViewMatrix(eyePosition, target, up);
-  }
-
-  ///
-  ///
-  ///
-  double _easeInOutCubic(double t) {
-    return t < 0.5 ? 4 * t * t * t : 1 - pow(-2 * t + 2, 3) / 2;
-  }
-
-  ///
-  ///
-  ///
-  double _lerp(double a, double b, double t) {
-    return a + (b - a) * t;
-  }
+  
 
   /// Gets the distance from the camera to the surface of the first layer.
   ///
   /// @return The distance to the surface, or null if there are no layers.
   @override
-  double? getDistanceToSurface() {
+  Future<double?> getDistanceToSurface() async {
     if (_layers.isEmpty) {
       return null;
     }
@@ -305,20 +232,14 @@ abstract class BaseTilesetRenderer<T> extends TilesetRenderer {
     _layers.clear();
   }
 
-  ///
-  ///
-  ///
-  @override
-  Future<Vector3> getTileCameraPosition(Cesium3DTileset layer) async {
-    return (await _getCameraTransformForTile(layer)).getTranslation();
-  }
 
-  /// Resets the camera orientation to the "root" position.
+  /// Resets the camera orientation such that it is looking at the root tile.
   ///
-  /// The camera is always looking at the origin. Its position is determined by
-  /// taking the center of the root tile of the first layer loaded, then
-  /// translating along the forward vector by the ratio between the distance
-  /// from the origin and the Z extent of the bounding volume.
+  /// In this implementation, the camera always looks at the origin.
+  /// This method sets its position is determined by taking the center of
+  /// the root tile of the first layer loaded,
+  /// then translating along the forward vector by the ratio between the
+  /// distance from the origin and the Z extent of the bounding volume.
   ///
   /// This achieves a reasonable starting position for the camera, so that
   /// the entirety of the root tile of the first layer is visible on load.
@@ -327,16 +248,14 @@ abstract class BaseTilesetRenderer<T> extends TilesetRenderer {
   /// @param offset Whether to apply an offset to the camera position.
   /// @return A Future that completes when the camera position is set.
   @override
-  Future<void> setCameraToRootPosition(Cesium3DTileset tileset,
+  Future<Matrix4> getCameraPositionForTileset(Cesium3DTileset tileset,
       {bool offset = false}) async {
     if (tileset.rootTile == null || tileset.isRootTileLoaded() == false) {
-      return;
+      throw Exception("Root tile not set or not yet loaded");
     }
 
-    var modelMatrix = await _getCameraTransformForTile(tileset, offset: offset);
+    return _getCameraTransformForTile(tileset, offset: offset);
 
-    // Set the camera model matrix
-    await setCameraModelMatrix(modelMatrix);
   }
 
   Future<Matrix4> _getCameraTransformForTile(Cesium3DTileset tileset,
@@ -360,10 +279,10 @@ abstract class BaseTilesetRenderer<T> extends TilesetRenderer {
 
       // Apply the offset to the position
       position += offsetVector;
-      // position *= 1.001;
     }
 
-    Vector3 forward = (-position).normalized();
+    Vector3 forward =
+        position.length == 0 ? Vector3(0, 0, -1) : (-position).normalized();
 
     var up = Vector3(0, 1, 0);
     final right = up.cross(forward)..normalize();
@@ -378,61 +297,109 @@ abstract class BaseTilesetRenderer<T> extends TilesetRenderer {
 
   Future _hide(Cesium3DTile tile) async {
     var entity = _entities[tile];
+    // we may call this method before the tile content is actually loaded
+    // this is fine, just ignore it if not
     if (entity != null) {
-      await setEntityVisibility(entity, false);
-    } else {
-      print("Warning : no entity found for tile");
+      await renderer.setEntityVisibility(entity, false);
     }
   }
 
   Future _reveal(Cesium3DTile tile) async {
+    // we may call this method before the tile content is actually loaded
+    // this is fine, just ignore it if not
     var entity = _entities[tile];
+
     if (entity != null) {
-      await setEntityVisibility(entity, true);
-    } else {
-      print("Warning : no entity found for tile");
+      await renderer.setEntityVisibility(entity, true);
     }
   }
 
+  final _renderable = <Cesium3DTile>{};
+
+  bool _updating = false;
+
   Future _update() async {
+    if (_updating) {
+      return;
+    }
+    _updating = true;
+    var viewport = await renderer.viewportDimensions;
     for (final layer in _layers.keys) {
       var renderable = layer
           .updateCameraAndViewport(
-              await cameraModelMatrix,
-              await cameraProjectionMatrix,
-              viewportDimensions.$1,
-              viewportDimensions.$2)
-          .toList();
-      for (var tile in renderable) {
+              await renderer.cameraModelMatrix,
+              await renderer.horizontalFovInRadians,
+              await renderer.verticalFovInRadians,
+              viewport.width.toDouble(),
+              viewport.height.toDouble())
+          .toSet();
+
+      // if any tiles are no longer renderable, we can remove them straight away
+      var disjunction = renderable.difference(_renderable);
+      for (var tile in disjunction) {
+        await _remove(tile);
+      }
+
+      _renderable.clear();
+      _renderable.addAll(renderable);
+
+      for (var tile in _renderable) {
         switch (tile.state) {
           case CesiumTileSelectionState.Rendered:
             if (!_loaded.contains(tile)) {
               _loadQueue.add(tile);
             }
+            await _reveal(tile);
+
           case CesiumTileSelectionState.Refined:
-            if (_loaded.contains(tile)) {
-              await _remove(tile);
-            }
+          //noop
+          // await _hide(tile);
+          // _loadQueue.remove(tile);
+          // await _hide(tile);
+          // if (_loaded.contains(tile)) {
+          //   await _remove(tile);
+          // }
+
           case CesiumTileSelectionState.Culled:
-            if (_loaded.contains(tile)) {
-              _cullQueue.add(tile);
-            }
+            await _hide(tile);
+
+          // _loadQueue.remove(tile);
+          // if (_loaded.contains(tile)) {
+          //   _cullQueue.add(tile);
+          // }
+          // _hide(tile);
           case CesiumTileSelectionState.None:
-            if (_loaded.contains(tile)) {
-              _cullQueue.add(tile);
-            }
+          // await _hide(tile);
+          // _loadQueue.remove(tile);
+          // if (_loaded.contains(tile)) {
+          //   _cullQueue.add(tile);
+          // }
+          // _hide(tile);
+
+          //noop
           case CesiumTileSelectionState.RenderedAndKicked:
-            await _hide(tile);
+          // _loadQueue.remove(tile);
+          // _hide(tile);
+          // if (_loaded.contains(tile)) {
+          //   _cullQueue.add(tile);
+          // }
           case CesiumTileSelectionState.RefinedAndKicked:
-            await _hide(tile);
+          // _loadQueue.remove(tile);
+          // _hide(tile);
+          // if (_loaded.contains(tile)) {
+          //   _cullQueue.add(tile);
+          // }
         }
       }
     }
-    final cameraPosition = (await cameraModelMatrix).getTranslation();
+    final cameraPosition = (await renderer.cameraModelMatrix).getTranslation();
     for (final marker in _markers.entries) {
       bool isVisible = (cameraPosition - marker.value.position).length <
           marker.value.visibilityDistance;
-      await setEntityVisibility(marker.key, isVisible);
+      await renderer.setEntityVisibility(marker.key, isVisible);
     }
+    _updating = false;
   }
+  
+
 }

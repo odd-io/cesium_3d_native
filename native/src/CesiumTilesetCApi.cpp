@@ -57,18 +57,22 @@ namespace DartCesiumNative {
 
 class SimpleTaskProcessor : public CesiumAsync::ITaskProcessor {
 public:
-    SimpleTaskProcessor() : running(true) {
-        workerThread = std::thread(&SimpleTaskProcessor::processJobs, this);
+    SimpleTaskProcessor(size_t numThreads) : running(true) {
+        for (size_t i = 0; i < numThreads; ++i) {
+            workerThreads.emplace_back(&SimpleTaskProcessor::processJobs, this);
+        }
     }
 
     ~SimpleTaskProcessor() {
         {
             std::unique_lock<std::mutex> lock(queueMutex);
             running = false;
-            condition.notify_one();
+            condition.notify_all();
         }
-        if (workerThread.joinable()) {
-            workerThread.join();
+        for (auto& thread : workerThreads) {
+            if (thread.joinable()) {
+                thread.join();
+            }
         }
     }
 
@@ -88,17 +92,21 @@ private:
                 if (!running && jobQueue.empty()) {
                     return;
                 }
-                job = std::move(jobQueue.front());
-                jobQueue.pop();
+                if (!jobQueue.empty()) {
+                    job = std::move(jobQueue.front());
+                    jobQueue.pop();
+                }
             }
-            job();
+            if (job) {
+                job();
+            }
         }
     }
 
     std::queue<std::function<void()>> jobQueue;
     std::mutex queueMutex;
     std::condition_variable condition;
-    std::thread workerThread;
+    std::vector<std::thread> workerThreads;
     std::atomic<bool> running;
 };
 
@@ -122,11 +130,11 @@ double3 glmTodouble3(const glm::dvec3& vec) {
 static bool _initialized = false;
 static CesiumAsync::AsyncSystem asyncSystem { nullptr };
 static std::shared_ptr<Cesium3DTilesSelection::IPrepareRendererResources> pResourcePreparer;
-void CesiumTileset_initialize() {
+void CesiumTileset_initialize(uint32_t numThreads) {
     if(_initialized) {
         return;
     }
-    asyncSystem = CesiumAsync::AsyncSystem {  std::make_shared<SimpleTaskProcessor>() };
+    asyncSystem = CesiumAsync::AsyncSystem {  std::make_shared<SimpleTaskProcessor>(numThreads) };
 
     pResourcePreparer = std::dynamic_pointer_cast<Cesium3DTilesSelection::IPrepareRendererResources>(std::make_shared<SimplePrepareRendererResource>());
 
@@ -165,6 +173,11 @@ CesiumTileset* CesiumTileset_create(const char* url, void(*onRootTileAvailableEv
     externals.pPrepareRendererResources = pResourcePreparer;
 
     TilesetOptions options;
+    options.forbidHoles = true;
+    options.lodTransitionLength = 0.0f;
+    options.enableOcclusionCulling = false;
+    options.enableFogCulling = false;
+    options.enableFrustumCulling = false;
 
     auto pTileset = new CesiumTileset();
     options.loadErrorCallback = [=](const TilesetLoadFailureDetails& details) {
@@ -199,6 +212,11 @@ CesiumTileset* CesiumTileset_createFromIonAsset(int64_t assetId, const char* acc
       pMockedCreditSystem};
 
     TilesetOptions options;
+    options.forbidHoles = true;
+    options.lodTransitionLength = 0.0f;
+    options.enableOcclusionCulling = false;
+    options.enableFogCulling = false;
+    options.enableFrustumCulling = true;
 
     auto pTileset = new CesiumTileset();
     options.loadErrorCallback = [=](const TilesetLoadFailureDetails& details) {
@@ -261,7 +279,7 @@ int CesiumTileset_updateView(CesiumTileset* tileset, const CesiumViewState viewS
         glm::dvec3(viewState.up[0], viewState.up[1], viewState.up[2]),
         glm::dvec2(viewState.viewportWidth, viewState.viewportHeight),
         viewState.horizontalFov,
-        viewState.horizontalFov * viewState.viewportHeight / viewState.viewportWidth,
+        viewState.verticalFov,
         ellipsoid
     );
 
@@ -334,33 +352,6 @@ int CesiumTileset_getTileCount(CesiumTileset* tileset) {
     return static_cast<int>(tileset->lastUpdateResult.tilesToRenderThisFrame.size());
 }
 
-void CesiumTileset_loadTile(CesiumTile* cesiumTile) {
-    auto tile = (Tile*)cesiumTile;
-    auto state = tile->getState();
-
-    spdlog::default_logger()->info("Load state: {}", (int)state);
-    return;
-
-    if(state == TileLoadState::Done) {
-        // spdlog::default_logger()->info("Tile loaded, ignoring.");
-        return;
-    }
-
-    auto pAssetAccessor = std::dynamic_pointer_cast<CesiumAsync::IAssetAccessor>(std::make_shared<CurlAssetAccessor>(""));
-
-    auto pMockedCreditSystem = std::make_shared<CesiumUtility::CreditSystem>();
-        
-    TilesetContentOptions contentOptions;
-    std::vector<CesiumAsync::IAssetAccessor::THeader> requestHeaders;
-    Cesium3DTilesSelection::TileLoadInput input { *tile, contentOptions, asyncSystem, pAssetAccessor, spdlog::default_logger(), requestHeaders };        
-    auto loader = tile->getLoader();
-    
-    auto loadResult = loader->loadTileContent(input);
-    
-    asyncSystem.dispatchMainThreadTasks();
-
-}   
-
 CesiumTileContentType CesiumTileset_getTileContentType(CesiumTile* cesiumTile) {
     auto tile = (Tile*)cesiumTile;
     auto state = tile->getState();
@@ -368,36 +359,18 @@ CesiumTileContentType CesiumTileset_getTileContentType(CesiumTile* cesiumTile) {
     if(tile->isEmptyContent()) { 
         auto& content = tile->getContent();
         auto ext = content.getExternalContent();
-        // spdlog::default_logger()->info("EMPTY");
         return CT_TC_EMPTY;
     } else if(tile->isExternalContent()) {
-        // spdlog::default_logger()->info("EXTERNAL");
         auto content = tile->getContent().getExternalContent();
         auto metadata = content->metadata;
-        // spdlog::default_logger()->info("{}", metadata.schemaUri.value_or("No schema URI"));
-        // if(metadata.schema) {
-        //     spdlog::default_logger()->info("Has schema!");
-        // } else { 
-        //     spdlog::default_logger()->info("No schema");
-        //     if(metadata.metadata) {
-        //         spdlog::default_logger()->info("Has metadata");
-        //     } else {
-        //         spdlog::default_logger()->info("No metadata");
-        //     }
-
-        //     spdlog::default_logger()->info("{} groups", metadata.groups.size());;
-        // }
         return CT_TC_EXTERNAL;
     } else if(tile->isRenderContent()) {
-        // spdlog::default_logger()->info("RENDER");
         return CT_TC_RENDER;
     } else {
         auto& content = tile->getContent();
         if(content.isUnknownContent()) {
-            // spdlog::default_logger()->info("UNKNOWN");
             return CT_TC_UNKNOWN;
         }
-        // spdlog::default_logger()->info("ERROR");
         return CT_TC_ERROR;
     }
 }
@@ -412,8 +385,12 @@ int CesiumTileset_getNumTilesLoaded(CesiumTileset* tileset) {
 }
 
 static void recurse(Tile* tile, const std::function<void(Tile* const)>& visitor) {
+    if(tile->getState() != TileLoadState::Done) {
+        return;
+    }
+
     visitor(tile);
-    
+        
     for (Tile& childTile : tile->getChildren()) {
         recurse(&childTile, visitor);
     }
@@ -423,17 +400,21 @@ CesiumTilesetRenderableTiles CesiumTileset_getRenderableTiles(CesiumTile* cesium
     
     std::set<const Tile* const> content;
     auto* tile = reinterpret_cast<Tile*>(cesiumTile);
+    
     const auto& visitor = [&](Tile* const tile) {
-        if(tile->isRenderContent()) {
+        if(tile->isRenderable() && tile->isRenderContent()) {
             content.insert(tile);
         }
     };
+    
     recurse(tile, visitor);
+    
     CesiumTilesetRenderableTiles out;
     out.numTiles = (int32_t)content.size();
     int i = 0;
-    for(auto it =content.begin(); it != content.end(); it++) {
+    for(auto it = content.begin(); it != content.end(); it++) {
         out.tiles[i] = reinterpret_cast<const CesiumTile* const>(*it);
+        // out.states[i] = tile->getState();
         i++;
     }
     return out;
@@ -728,7 +709,14 @@ uint8_t* CesiumGltfModel_serialize_to_data_uri(CesiumGltfModel* opaqueModel, uin
     
 }
 
-uint8_t* CesiumGltfModel_serialize(CesiumGltfModel* opaqueModel, uint32_t* length) {
+void CesiumGltfModel_serializeAsync(CesiumGltfModel* opaqueModel, void(*callback)(SerializedCesiumGltfModel)) {
+    auto fut = asyncSystem.runInWorkerThread([=]() { 
+        auto serialized = CesiumGltfModel_serialize(opaqueModel);
+        callback(serialized);
+    }); 
+}
+
+SerializedCesiumGltfModel CesiumGltfModel_serialize(CesiumGltfModel* opaqueModel) {
     CesiumGltfWriter::GltfWriter writer;
 
     auto model = reinterpret_cast<CesiumGltf::Model*>(opaqueModel);
@@ -772,18 +760,19 @@ uint8_t* CesiumGltfModel_serialize(CesiumGltfModel* opaqueModel, uint32_t* lengt
         spdlog::default_logger()->warn(msg);
     }
 
-    uint8_t* serialized = (uint8_t*) calloc(result.gltfBytes.size(), 1);
+    SerializedCesiumGltfModel serialized;
+    serialized.data = (uint8_t*) malloc(result.gltfBytes.size());
 
-    memcpy(serialized, result.gltfBytes.data(), result.gltfBytes.size());
+    memcpy(serialized.data, result.gltfBytes.data(), result.gltfBytes.size());
 
-    *length = result.gltfBytes.size();
+    serialized.length = result.gltfBytes.size();
 
     return serialized;
     
 }
 
-void CesiumGltfModel_free_serialized(uint8_t* data) {
-    free(data);
+void CesiumGltfModel_free_serialized(SerializedCesiumGltfModel model) {
+    free(model.data);
 }
 
 }

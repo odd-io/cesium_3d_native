@@ -6,6 +6,7 @@
 #define GLM_FORCE_SIZE_T_LENGTH 
 
 #include <stdint.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,8 +27,9 @@ typedef struct CesiumGltfModel CesiumGltfModel; //  CesiumGltf::Model
 
 // Holds pointers to all current tiles with render content.
 struct CesiumTilesetRenderableTiles {
-    const CesiumTile* tiles[1024];
-    int32_t numTiles;
+    const CesiumTile* tiles[4096];
+    // CesiumTileSelectionState states[4096];
+    size_t numTiles;
 };
 typedef struct CesiumTilesetRenderableTiles CesiumTilesetRenderableTiles;
 
@@ -75,6 +77,7 @@ typedef struct {
     double viewportWidth;
     double viewportHeight;
     double horizontalFov;
+    double verticalFov;
 } CesiumViewState;
 
 typedef struct CesiumBoundingSphere {
@@ -130,8 +133,16 @@ enum CesiumTileSelectionState {
 };
 typedef enum CesiumTileSelectionState CesiumTileSelectionState;
 
+struct SerializedCesiumGltfModel {
+    uint8_t* data;
+    size_t length;
+};
+typedef struct SerializedCesiumGltfModel SerializedCesiumGltfModel;
+
 // Initializes all bindings. Must be called before any other CesiumTileset_ function.
-void CesiumTileset_initialize();
+// numThreads refers to the number of threads that will be created for the Async system (job queue).
+//
+void CesiumTileset_initialize(uint32_t numThreads);
 
 void CesiumTileset_pumpAsyncQueue();
 
@@ -209,9 +220,10 @@ int32_t CesiumGltfModel_getMaterialCount(CesiumGltfModel* model);
 // Get the number of textures in the model
 int32_t CesiumGltfModel_getTextureCount(CesiumGltfModel* model);
 
-uint8_t* CesiumGltfModel_serialize(CesiumGltfModel* opaqueModel, uint32_t* length);
+SerializedCesiumGltfModel CesiumGltfModel_serialize(CesiumGltfModel* opaqueModel);
+void CesiumGltfModel_serializeAsync(CesiumGltfModel* opaqueModel, void(*callback)(SerializedCesiumGltfModel));
 
-void CesiumGltfModel_free_serialized(uint8_t* serialized);
+void CesiumGltfModel_free_serialized(SerializedCesiumGltfModel serialized);
 
 #ifdef __cplusplus
 }

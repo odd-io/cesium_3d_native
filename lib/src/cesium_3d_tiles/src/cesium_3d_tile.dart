@@ -12,7 +12,7 @@ class Cesium3DTile {
 
   Cesium3DTile(this._tile, this.state, this.tileset);
 
-  Uint8List loadGltf() {
+  Future<Uint8List?> loadGltf() {
     return tileset.loadGltf(_tile);
   }
 

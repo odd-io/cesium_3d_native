@@ -7,8 +7,10 @@ library;
 
 import 'dart:ffi' as ffi;
 
-@ffi.Native<ffi.Void Function()>()
-external void CesiumTileset_initialize();
+@ffi.Native<ffi.Void Function(ffi.Uint32)>()
+external void CesiumTileset_initialize(
+  int numThreads,
+);
 
 @ffi.Native<ffi.Void Function()>()
 external void CesiumTileset_pumpAsyncQueue();
@@ -182,17 +184,26 @@ external int CesiumGltfModel_getTextureCount(
   ffi.Pointer<CesiumGltfModel> model,
 );
 
-@ffi.Native<
-    ffi.Pointer<ffi.Uint8> Function(
-        ffi.Pointer<CesiumGltfModel>, ffi.Pointer<ffi.Uint32>)>()
-external ffi.Pointer<ffi.Uint8> CesiumGltfModel_serialize(
+@ffi.Native<SerializedCesiumGltfModel Function(ffi.Pointer<CesiumGltfModel>)>()
+external SerializedCesiumGltfModel CesiumGltfModel_serialize(
   ffi.Pointer<CesiumGltfModel> opaqueModel,
-  ffi.Pointer<ffi.Uint32> length,
 );
 
-@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Uint8>)>()
+@ffi.Native<
+    ffi.Void Function(
+        ffi.Pointer<CesiumGltfModel>,
+        ffi.Pointer<
+            ffi
+            .NativeFunction<ffi.Void Function(SerializedCesiumGltfModel)>>)>()
+external void CesiumGltfModel_serializeAsync(
+  ffi.Pointer<CesiumGltfModel> opaqueModel,
+  ffi.Pointer<ffi.NativeFunction<ffi.Void Function(SerializedCesiumGltfModel)>>
+      callback,
+);
+
+@ffi.Native<ffi.Void Function(SerializedCesiumGltfModel)>()
 external void CesiumGltfModel_free_serialized(
-  ffi.Pointer<ffi.Uint8> serialized,
+  SerializedCesiumGltfModel serialized,
 );
 
 final class CesiumTileset extends ffi.Opaque {}
@@ -202,10 +213,10 @@ final class CesiumTile extends ffi.Opaque {}
 final class CesiumGltfModel extends ffi.Opaque {}
 
 final class CesiumTilesetRenderableTiles extends ffi.Struct {
-  @ffi.Array.multi([1024])
+  @ffi.Array.multi([4096])
   external ffi.Array<ffi.Pointer<CesiumTile>> tiles;
 
-  @ffi.Int32()
+  @ffi.Size()
   external int numTiles;
 }
 
@@ -270,6 +281,9 @@ final class CesiumViewState extends ffi.Struct {
 
   @ffi.Double()
   external double horizontalFov;
+
+  @ffi.Double()
+  external double verticalFov;
 }
 
 final class CesiumBoundingSphere extends ffi.Struct {
@@ -347,6 +361,13 @@ abstract class CesiumTileSelectionState {
   static const int CT_SS_REFINED = 3;
   static const int CT_SS_RENDERED_AND_KICKED = 4;
   static const int CT_SS_REFINED_AND_KICKED = 5;
+}
+
+final class SerializedCesiumGltfModel extends ffi.Struct {
+  external ffi.Pointer<ffi.Uint8> data;
+
+  @ffi.Size()
+  external int length;
 }
 
 typedef bool = ffi.Int;
