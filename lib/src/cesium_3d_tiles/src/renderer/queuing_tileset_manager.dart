@@ -9,17 +9,20 @@ import 'package:cesium_3d_tiles/src/cesium_native/src/cesium_native.dart';
 import '../cesium_3d_tile.dart';
 
 ///
-/// A partial implementation of [TilesetRenderer].
+/// A partial implementation of [TilesetRenderer] that periodically updates
+/// tileset(s) with the current camera matrix and uses a queue to load/remove
+/// gltf content as necessary.
+/// 
+/// This will update the tileset with the current view once per second, or 
+/// whenever [markDirty] is called, whichever comes first. The intention is that
+/// end consumers call [markDirty] whenever the viewport changes (e.g. the 
+/// window is resized) or the camera changes (programatically or due to a 
+/// gesture).
 ///
-/// This uses a Timer to periodically update tileset(s) with the current camera
-/// matrix and load/remove gltf content as necessary.
-///
-/// This class only describes the methods needed to load gltf models and insert
-/// into the current rendering scene; you will need to implement these yourself
+/// This class only handles the tileset updates and determines which tiles to
+/// render; actually rendering the gltf content is the responsibility of a 
+/// [TilesetRenderer]. You will need to implement these yourself
 /// using your own chosen rendering framework.
-///
-/// The generic parameter [T] is the type of the entity handle returned by the
-/// actual rendering library.
 ///
 class QueueingTilesetManager<T> extends TilesetManager {
   final _loaded = <Cesium3DTile>{};
@@ -34,9 +37,6 @@ class QueueingTilesetManager<T> extends TilesetManager {
 
   final _layers = <Cesium3DTileset, List<CesiumTile>>{};
   final _entities = <Cesium3DTile, T>{};
-
-  DateTime _loadBookmark = DateTime.now();
-  int _numLoaded = 0;
 
   final TilesetRenderer<T> renderer;
 
@@ -59,18 +59,10 @@ class QueueingTilesetManager<T> extends TilesetManager {
               _lastTileUpdate!.millisecondsSinceEpoch;
       if (dimensions.width > 0 &&
           dimensions.height > 0 &&
-          _cameraDirty &&
-          msSinceLastTileUpdate > 16) {
+          (_cameraDirty || msSinceLastTileUpdate > 1000)) {
         await _update();
         _lastTileUpdate = DateTime.now();
         _cameraDirty = false;
-        if (_lastTileUpdate!.millisecondsSinceEpoch -
-                _loadBookmark.millisecondsSinceEpoch >
-            1000) {
-          print("_numLoaded $_numLoaded (${_loadQueue.length} left in queue)");
-          _loadBookmark = _lastTileUpdate!;
-          _numLoaded = 0;
-        }
       }
 
       _handlingQueue = true;
@@ -134,7 +126,7 @@ class QueueingTilesetManager<T> extends TilesetManager {
       _loaded.add(tile);
 
       await _reveal(tile);
-      _numLoaded++;
+
       _loading.remove(tile);
     });
   }

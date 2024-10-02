@@ -17,6 +17,8 @@ import 'markers.dart';
 /// If any [Cesium3DTileset] has renderable content, implementations must
 /// add that to the current scene (note that currently this will always be glTF).
 ///
+/// The generic parameter [T] is the type of the entity handle returned by the
+/// actual rendering library.
 abstract class TilesetRenderer<T> {
   /// Sets the visibility of a specific layer.
   ///
