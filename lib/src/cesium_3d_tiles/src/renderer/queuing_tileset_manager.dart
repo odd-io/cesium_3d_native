@@ -3,10 +3,8 @@ import 'dart:async';
 import 'package:cesium_3d_tiles/src/cesium_3d_tiles/src/cesium_3d_tileset.dart';
 import 'package:cesium_3d_tiles/src/cesium_3d_tiles/src/renderer/markers.dart';
 import 'package:cesium_3d_tiles/src/cesium_3d_tiles/src/renderer/tileset_manager.dart';
-
 import 'package:cesium_3d_tiles/src/cesium_3d_tiles/src/renderer/tileset_renderer.dart';
 import 'package:cesium_3d_tiles/src/cesium_native/src/cesium_native.dart';
-import 'package:vector_math/vector_math_64.dart';
 
 import '../cesium_3d_tile.dart';
 
@@ -24,7 +22,6 @@ import '../cesium_3d_tile.dart';
 /// actual rendering library.
 ///
 class QueueingTilesetManager<T> extends TilesetManager {
-  
   final _loaded = <Cesium3DTile>{};
   final _loadQueue = <Cesium3DTile>{};
   final _cullQueue = <Cesium3DTile>{};
@@ -115,7 +112,6 @@ class QueueingTilesetManager<T> extends TilesetManager {
   final _loading = <Cesium3DTile>{};
 
   Future _load(Cesium3DTile tile) async {
-    
     if (_loaded.contains(tile) || _loading.contains(tile)) {
       return;
     }
@@ -180,7 +176,6 @@ class QueueingTilesetManager<T> extends TilesetManager {
     _markers[entity] = marker;
   }
 
-
   /// Removes a [Cesium3DTileset] and all its associated entities from the renderer.
   ///
   /// This method removes all entities associated with the layer, removes the layer
@@ -193,7 +188,7 @@ class QueueingTilesetManager<T> extends TilesetManager {
     if (!_layers.containsKey(layer)) {
       throw Exception("Layer does not exist in this renderer");
     }
-    for (final tile in _layers[layer]!) {
+    for (final tile in _renderable[layer]!) {
       final entity = _entities[tile];
       if (entity != null) {
         await renderer.removeEntity(entity);
@@ -202,10 +197,8 @@ class QueueingTilesetManager<T> extends TilesetManager {
 
     _layers.remove(layer);
     await layer.dispose();
-    _layers.remove(layer);
+    _renderable.remove(layer);
   }
-
-  
 
   /// Gets the distance from the camera to the surface of the first layer.
   ///
@@ -232,10 +225,9 @@ class QueueingTilesetManager<T> extends TilesetManager {
     }
     _entities.clear();
     _layers.clear();
+    _renderable.clear();
   }
 
-
-  
   Future _hide(Cesium3DTile tile) async {
     var entity = _entities[tile];
     // we may call this method before the tile content is actually loaded
@@ -320,6 +312,4 @@ class QueueingTilesetManager<T> extends TilesetManager {
     }
     _updating = false;
   }
-  
-
 }
