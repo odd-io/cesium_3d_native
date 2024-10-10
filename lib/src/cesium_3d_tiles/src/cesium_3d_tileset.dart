@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ffi';
 import 'dart:math';
 import 'dart:typed_data';
 import 'package:cesium_3d_tiles/src/cesium_native/cesium_native.dart';
@@ -7,10 +8,18 @@ import 'transforms.dart';
 import 'package:vector_math/vector_math_64.dart';
 
 ///
-/// When working with multiple tileset can be assigned a render layer, to determine that will determine both the visibility and the render
-/// priority for this tileset.
+/// A Tileset can be assigned a numeric layer from 0 to 6 (inclusive).
+/// 
+/// This is used to group tilesets together if you want to toggle visibility.
 ///
-/// Markers are always at render layer 0, this should be between 1 and 6 (inclusive).
+/// This is also used to determine rendering priority. Higher values are 
+/// rendered after lower values (meaning if depth testing is disabled, higher  
+/// render layers will always appear "on top" of lower render layers)
+/// 
+/// The renderer should always enable depth testing at render layer 0 and 
+/// disable depth testing for all higher layers.
+/// 
+/// Markers are always at render layer 6.
 ///
 enum RenderLayer {
   layer0,
@@ -36,8 +45,11 @@ class Cesium3DTileset {
   /// Markers are always at render layer 0, this should be between 1 and 6 (inclusive).
   final RenderLayer renderLayer;
 
-  CesiumView _view =
-      CesiumView(Vector3.zero(), Vector3(0,0,-1), Vector3(0,1,0), 100, 100, pi/4,pi/4);
+  ///
+  bool disableDepthWrite = false;
+
+  CesiumView _view = CesiumView(Vector3.zero(), Vector3(0, 0, -1),
+      Vector3(0, 1, 0), 100, 100, pi / 4, pi / 4);
 
   CesiumTile? _rootTile;
 
@@ -148,42 +160,42 @@ class Cesium3DTileset {
   ///
   ///
   ///
-  Iterable<Cesium3DTile> updateCameraAndViewport(
+  Future<List<Cesium3DTile>> updateCameraAndViewport(
       Matrix4 cameraModelMatrix,
       double horizontalFovInRadians,
       double verticalFovInRadians,
       double viewportWidth,
-      double viewportHeight) sync* {
-    // Extract the position from the matrix
-    var gltfPosition = cameraModelMatrix.getTranslation();
+      double viewportHeight) async {
+    var start = DateTime.now();
 
-    var transform = gltfToEcef;
-    Vector3 position = transform * gltfPosition;
-    Vector3 up = transform * Vector3(0, 1, 0);
-    Vector3 forward = transform *
-        (gltfPosition.length == 0 ? Vector3(0, 0, -1) : -gltfPosition);
-    forward.normalize();
+    var position = cameraModelMatrix.getTranslation();
+    var up = cameraModelMatrix.up;
+    var forward = cameraModelMatrix.forward;
 
-    var right = up.cross(forward).normalized();
-    up = forward.cross(right);
+    position = gltfToEcef * position;
+    up = gltfToEcef * up;
+    forward = gltfToEcef * forward;
 
-    if (forward.length == 0) {
-      throw Exception("Camera update failed");
-    }
+    _view = CesiumView(position, forward, up, viewportWidth, viewportHeight,
+        horizontalFovInRadians, verticalFovInRadians);
+    start = DateTime.now();
 
-    _view = CesiumView(
-        position, forward, up, viewportWidth, viewportHeight, horizontalFovInRadians, verticalFovInRadians);
-    var renderableTileCount = CesiumNative.instance.updateTilesetView(_tileset, _view);
-
+    var renderableTileCount =
+        await CesiumNative.instance.updateTilesetView(_tileset, _view);
+    var elapsed =
+        DateTime.now().millisecondsSinceEpoch - start.millisecondsSinceEpoch;
+    start = DateTime.now();
+    var tiles = <Cesium3DTile>[];
     if (_rootTile != null && renderableTileCount > 0) {
       final renderableTiles =
           CesiumNative.instance.getRenderableTiles(_rootTile!);
       for (final tile in renderableTiles) {
         var tileSelectionState =
             CesiumNative.instance.getSelectionState(_tileset, tile);
-        yield Cesium3DTile(tile, tileSelectionState, this);
+        tiles.add(Cesium3DTile(tile, tileSelectionState, this));
       }
     }
+    return tiles;
   }
 
   final _models = <CesiumTile, SerializedCesiumGltfModel>{};
@@ -240,5 +252,4 @@ class Cesium3DTileset {
         localOffset.y.abs() > 1.0 ||
         localOffset.z.abs() > 1.0;
   }
-
 }
