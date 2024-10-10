@@ -24,14 +24,12 @@ void main(List<String> args) async {
   var tileset = await Cesium3DTileset.fromCesiumIon(assetId, accessToken);
 
   final cameraModelMatrix = Matrix4.identity();
-  final fov = (45 / 360) * (2*pi);
+  final fov = (45 / 360) * (2 * pi);
 
   final viewport = (width: 1920.0, height: 1080.0);
 
-  var renderableTiles = tileset
-      .updateCameraAndViewport(
-          cameraModelMatrix, fov, fov, viewport.width, viewport.height)
-      .toList();
+  var renderableTiles = await tileset.updateCameraAndViewport(
+      cameraModelMatrix, fov, fov, viewport.width, viewport.height);
 
   print("${renderableTiles.length} renderable tiles");
 
