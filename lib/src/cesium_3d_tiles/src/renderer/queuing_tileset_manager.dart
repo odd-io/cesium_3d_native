@@ -12,15 +12,15 @@ import '../cesium_3d_tile.dart';
 /// A partial implementation of [TilesetRenderer] that periodically updates
 /// tileset(s) with the current camera matrix and uses a queue to load/remove
 /// gltf content as necessary.
-/// 
-/// This will update the tileset with the current view once per second, or 
+///
+/// This will update the tileset with the current view once per second, or
 /// whenever [markDirty] is called, whichever comes first. The intention is that
-/// end consumers call [markDirty] whenever the viewport changes (e.g. the 
-/// window is resized) or the camera changes (programatically or due to a 
+/// end consumers call [markDirty] whenever the viewport changes (e.g. the
+/// window is resized) or the camera changes (programatically or due to a
 /// gesture).
 ///
 /// This class only handles the tileset updates and determines which tiles to
-/// render; actually rendering the gltf content is the responsibility of a 
+/// render; actually rendering the gltf content is the responsibility of a
 /// [TilesetRenderer]. You will need to implement these yourself
 /// using your own chosen rendering framework.
 ///
@@ -45,41 +45,42 @@ class QueueingTilesetManager<T> extends TilesetManager {
   /// This constructor initializes a periodic timer that updates the renderer
   /// and processes the load queue every 16 milliseconds.
   QueueingTilesetManager(this.renderer) {
-    _timer = Timer.periodic(const Duration(milliseconds: 4), (_) async {
-      // skip all updates if we haven't finished the last iteration
-      if (_handlingQueue) {
-        return;
-      }
+    _timer = Timer.periodic(const Duration(milliseconds: 8), _tick);
+  }
 
-      var dimensions = await renderer.viewportDimensions;
-      var now = DateTime.now();
-      var msSinceLastTileUpdate = _lastTileUpdate == null
-          ? 9999
-          : now.millisecondsSinceEpoch -
-              _lastTileUpdate!.millisecondsSinceEpoch;
-      if (dimensions.width > 0 &&
-          dimensions.height > 0 &&
-          (_cameraDirty || msSinceLastTileUpdate > 1000)) {
-        await _update();
-        _lastTileUpdate = DateTime.now();
-        _cameraDirty = false;
-      }
+  Future _tick(_) async {
+    // skip all updates if we haven't finished the last iteration
+    if (_handlingQueue) {
+      return;
+    }
 
-      _handlingQueue = true;
+    _handlingQueue = true;
 
-      while (_loadQueue.isNotEmpty) {
-        var item = _loadQueue.first;
-        await _load(item);
-        _loadQueue.remove(item);
-      }
+    var dimensions = await renderer.viewportDimensions;
+    var now = DateTime.now();
+    var msSinceLastTileUpdate = _lastTileUpdate == null
+        ? 9999
+        : now.millisecondsSinceEpoch - _lastTileUpdate!.millisecondsSinceEpoch;
+    if (dimensions.width > 0 &&
+        dimensions.height > 0 &&
+        (_cameraDirty || msSinceLastTileUpdate > 16)) {
+      await _update();
+      _lastTileUpdate = DateTime.now();
+      _cameraDirty = false;
+    }
 
-      while (_cullQueue.isNotEmpty) {
-        var tile = _cullQueue.first;
-        await _remove(tile);
-        _cullQueue.remove(tile);
-      }
-      _handlingQueue = false;
-    });
+    while (_loadQueue.isNotEmpty) {
+      var item = _loadQueue.first;
+      await _load(item);
+      _loadQueue.remove(item);
+    } 
+    
+    while (_cullQueue.isNotEmpty) {
+      var tile = _cullQueue.first;
+      await _remove(tile);
+      _cullQueue.remove(tile);
+    }
+    _handlingQueue = false;
   }
 
   Future _remove(Cesium3DTile tile) async {
@@ -92,7 +93,7 @@ class QueueingTilesetManager<T> extends TilesetManager {
       _entities.remove(tile);
 
       _loaded.remove(tile);
-      tile.freeGltf();
+      // tile.freeGltf();
     }
   }
 
@@ -120,15 +121,14 @@ class QueueingTilesetManager<T> extends TilesetManager {
 
     var transform = tile.getTransform();
 
-    renderer.loadGlb(data, transform, tile.tileset).then((entity) async {
-      _entities[tile] = entity;
+    var entity = await renderer.loadGlb(data, transform, tile.tileset);
+    _entities[tile] = entity;
 
-      _loaded.add(tile);
+    _loaded.add(tile);
 
-      await _reveal(tile);
+    await _reveal(tile);
 
-      _loading.remove(tile);
-    });
+    _loading.remove(tile);
   }
 
   /// Adds a new [Cesium3DTileset] to the renderer.
@@ -249,20 +249,20 @@ class QueueingTilesetManager<T> extends TilesetManager {
     }
     _updating = true;
     var viewport = await renderer.viewportDimensions;
-    for (final layer in _layers.keys) {
-      var renderable = layer
-          .updateCameraAndViewport(
+    final layers = _layers.keys.toList();
+    for (final layer in layers) {
+      var renderable = (await layer.updateCameraAndViewport(
               await renderer.cameraModelMatrix,
-              await renderer.horizontalFovInRadians,
-              await renderer.verticalFovInRadians,
+              (await renderer.horizontalFovInRadians),
+              (await renderer.verticalFovInRadians),
               viewport.width.toDouble(),
-              viewport.height.toDouble())
+              viewport.height.toDouble()) )
           .toSet();
 
       // if any tiles are no longer renderable, we can remove them straight away
       var disjunction = renderable.difference(_renderable[layer]!);
       for (var tile in disjunction) {
-        await _remove(tile);
+        _cullQueue.add(tile);
       }
 
       _renderable[layer]!.clear();
@@ -274,6 +274,7 @@ class QueueingTilesetManager<T> extends TilesetManager {
             if (!_loaded.contains(tile)) {
               _loadQueue.add(tile);
             }
+            _reveal(tile);
           case CesiumTileSelectionState.Refined:
             _loadQueue.remove(tile);
             if (_loaded.contains(tile)) {
@@ -304,4 +305,5 @@ class QueueingTilesetManager<T> extends TilesetManager {
     }
     _updating = false;
   }
+
 }
