@@ -170,6 +170,9 @@ void CesiumTileset_destroy(CesiumTileset* tileset, void(*onTileDestroyEvent)());
 // Update the view and get the number of tiles to render
 int CesiumTileset_updateView(CesiumTileset* tileset, const CesiumViewState viewState, float deltaTime);
 
+// Asynchronously update the view and get the number of tiles to render
+void CesiumTileset_updateViewAsync(CesiumTileset* tileset, const CesiumViewState viewState, float deltaTime, void(*callback)(int));
+
 CesiumCartographic CesiumTileset_getPositionCartographic(CesiumViewState viewState);
 
 // Return the number of tiles kicked on the last update. This will remain valid until the next call to CesiumTileset_updateView.

@@ -127,15 +127,19 @@ double3 glmTodouble3(const glm::dvec3& vec) {
 // CesiumTileset_initialize() only needs to be called once over the lifetime of an application.
 // Specifically, the API does not need re-initializiang after a Dart/Flutter hot reload.
 // This flag is set to true after the first call to CesiumTileset_initialize(); all subsequent calls will be ignored.
-static bool _initialized = false;
 static CesiumAsync::AsyncSystem asyncSystem { nullptr };
 static std::shared_ptr<Cesium3DTilesSelection::IPrepareRendererResources> pResourcePreparer;
+static std::shared_ptr<CesiumAsync::IAssetAccessor> pAssetAccessor;
+static std::shared_ptr<CesiumUtility::CreditSystem> pMockedCreditSystem;
+static std::thread *main;
 void CesiumTileset_initialize(uint32_t numThreads) {
-    if(_initialized) {
+    if(pResourcePreparer) {
         return;
     }
+    
     asyncSystem = CesiumAsync::AsyncSystem {  std::make_shared<SimpleTaskProcessor>(numThreads) };
-
+    pAssetAccessor = std::dynamic_pointer_cast<CesiumAsync::IAssetAccessor>(std::make_shared<CurlAssetAccessor>());
+    pMockedCreditSystem = std::make_shared<CesiumUtility::CreditSystem>();
     pResourcePreparer = std::dynamic_pointer_cast<Cesium3DTilesSelection::IPrepareRendererResources>(std::make_shared<SimplePrepareRendererResource>());
 
     #ifdef __ANDROID__
@@ -153,15 +157,11 @@ void CesiumTileset_initialize(uint32_t numThreads) {
     
     Cesium3DTilesContent::registerAllTileContentTypes();
     
-    spdlog::default_logger()->info("Cesium Native bindings initialized");
-
-    _initialized = true;
+    spdlog::default_logger()->info("Cesium Native bindings initialized ({} threads)", numThreads);
 
 }
 
 CesiumTileset* CesiumTileset_create(const char* url, void(*onRootTileAvailableEvent)()) {
-    auto pAssetAccessor = std::dynamic_pointer_cast<CesiumAsync::IAssetAccessor>(std::make_shared<CurlAssetAccessor>());
-    auto pMockedCreditSystem = std::make_shared<CesiumUtility::CreditSystem>();
 
     Cesium3DTilesSelection::TilesetExternals externals {
       pAssetAccessor,
@@ -179,6 +179,8 @@ CesiumTileset* CesiumTileset_create(const char* url, void(*onRootTileAvailableEv
     options.enableOcclusionCulling = true;
     options.enableFogCulling = true;
     options.enableFrustumCulling = true;
+    options.maximumSimultaneousTileLoads = 10;
+    options.maximumSimultaneousSubtreeLoads = 10;
 
     auto pTileset = new CesiumTileset();
     options.loadErrorCallback = [=](const TilesetLoadFailureDetails& details) {
@@ -202,10 +204,6 @@ CesiumTileset* CesiumTileset_create(const char* url, void(*onRootTileAvailableEv
 
 CesiumTileset* CesiumTileset_createFromIonAsset(int64_t assetId, const char* accessToken, void(*onRootTileAvailableEvent)()) {
 
-    auto pAssetAccessor = std::dynamic_pointer_cast<CesiumAsync::IAssetAccessor>(std::make_shared<CurlAssetAccessor>(accessToken));
-
-    auto pMockedCreditSystem = std::make_shared<CesiumUtility::CreditSystem>();
-
     Cesium3DTilesSelection::TilesetExternals externals {
       pAssetAccessor,
       pResourcePreparer,
@@ -214,12 +212,17 @@ CesiumTileset* CesiumTileset_createFromIonAsset(int64_t assetId, const char* acc
 
     // TODO - pass these in as arguments
     TilesetOptions options;
+    
+    // options.delayRefinementForOcclusion = true;
+    options.loadingDescendantLimit = 10;
     options.forbidHoles = true;
-    options.lodTransitionLength = 0.0f;
+    options.lodTransitionLength = 0.1f;
     options.enableOcclusionCulling = true;
     options.enableFogCulling = true;
-    options.enableFrustumCulling = true;
-
+    options.enableFrustumCulling = false;
+    options.maximumSimultaneousTileLoads = 5;
+    options.maximumSimultaneousSubtreeLoads = 5;
+    
     auto pTileset = new CesiumTileset();
     options.loadErrorCallback = [=](const TilesetLoadFailureDetails& details) {
         pTileset->loadErrorMessage = details.message;
@@ -285,10 +288,17 @@ int CesiumTileset_updateView(CesiumTileset* tileset, const CesiumViewState viewS
         ellipsoid
     );
 
-    tileset->lastUpdateResult = tileset->tileset->updateView({cesiumViewState}, deltaTime);
-    
+    tileset->lastUpdateResult = tileset->tileset->updateView({cesiumViewState}, deltaTime);    
   
     return static_cast<int>(tileset->lastUpdateResult.tilesToRenderThisFrame.size());
+}
+
+void CesiumTileset_updateViewAsync(CesiumTileset* tileset, const CesiumViewState viewState, float deltaTime, void(*callback)(int)) {
+    auto fut = asyncSystem.runInMainThread([=]() { 
+        auto result = CesiumTileset_updateView(tileset, viewState, deltaTime);
+        callback(result);
+    }); 
+    asyncSystem.dispatchMainThreadTasks();
 }
 
 float CesiumTileset_computeLoadProgress(CesiumTileset* tileset) {
