@@ -25,7 +25,6 @@ typedef CesiumGltfModel = Pointer<g.CesiumGltfModel>;
 final class SerializedCesiumGltfModel {
   final g.SerializedCesiumGltfModel _serialized;
 
-
   Uint8List get data => _serialized.data.asTypedList(_serialized.length);
 
   SerializedCesiumGltfModel(this._serialized);
@@ -54,8 +53,6 @@ enum CesiumTileLoadState {
 }
 
 class CesiumNative {
-  // preallocate memory
-
   // error message
   static late Pointer<Char> _errorMessage;
 
@@ -126,7 +123,7 @@ class CesiumNative {
         ptr.cast<Char>(), rootTileAvailable.nativeFunction);
     calloc.free(ptr);
     while (!completer.isCompleted) {
-      await Future.delayed(Duration(milliseconds: 100));
+      await Future.delayed(Duration(milliseconds: 10));
       g.CesiumTileset_pumpAsyncQueue();
     }
 
@@ -170,16 +167,40 @@ class CesiumNative {
   ///
   /// Update the tileset with the current view. Returns the number of tiles to render.
   ///
-  int updateTilesetView(CesiumTileset tileset, CesiumView view) {
+  Future<int> updateTilesetView(CesiumTileset tileset, CesiumView view) async {
     var now = DateTime.now();
     var delta = tileset._lastUpdate == null
         ? 0.0
         : now.difference(tileset._lastUpdate!).inMilliseconds / 1000.0;
+    var start = DateTime.now();
     final viewStruct = _toStruct(view);
 
-    int numTiles = g.CesiumTileset_updateView(tileset._ptr, viewStruct, delta);
+    final completer = Completer<int>();
+
+    final callback =
+        NativeCallable<Void Function(Int)>.listener((int numTiles) {
+      completer.complete(numTiles);
+    });
+    start = DateTime.now();
+    g.CesiumTileset_updateViewAsync(
+        tileset._ptr, viewStruct, delta, callback.nativeFunction);
+    var elapsed = DateTime.now().millisecondsSinceEpoch - start.millisecondsSinceEpoch;
+    if(elapsed > 50) {
+    print(
+        "CesiumTileset_updateViewAsync completed in ${elapsed}ms");
+    }
+    int waited = 0;
+    await Future.delayed(Duration.zero);
+    while (!completer.isCompleted) {
+      await Future.delayed(Duration(milliseconds: 1));
+      waited += 1;
+    }
+    var numTiles = await completer.future;
     if (numTiles == -1) {
       throw Exception("Unknown error updating tileset view");
+    }
+    if (waited > 0) {
+      print("Waited for $waited ms to complete");
     }
     tileset._lastUpdate = now;
     return numTiles;
@@ -379,8 +400,7 @@ class CesiumNative {
     final callback =
         NativeCallable<Void Function(g.SerializedCesiumGltfModel)>.listener(
             (g.SerializedCesiumGltfModel serialized) {
-      completer.complete(
-          SerializedCesiumGltfModel(serialized));
+      completer.complete(SerializedCesiumGltfModel(serialized));
     });
     g.CesiumGltfModel_serializeAsync(model, callback.nativeFunction);
 
