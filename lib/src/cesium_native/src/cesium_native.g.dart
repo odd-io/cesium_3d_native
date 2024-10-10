@@ -75,6 +75,16 @@ external int CesiumTileset_updateView(
   double deltaTime,
 );
 
+@ffi.Native<
+    ffi.Void Function(ffi.Pointer<CesiumTileset>, CesiumViewState, ffi.Float,
+        ffi.Pointer<ffi.NativeFunction<ffi.Void Function(ffi.Int)>>)>()
+external void CesiumTileset_updateViewAsync(
+  ffi.Pointer<CesiumTileset> tileset,
+  CesiumViewState viewState,
+  double deltaTime,
+  ffi.Pointer<ffi.NativeFunction<ffi.Void Function(ffi.Int)>> callback,
+);
+
 @ffi.Native<CesiumCartographic Function(CesiumViewState)>()
 external CesiumCartographic CesiumTileset_getPositionCartographic(
   CesiumViewState viewState,
