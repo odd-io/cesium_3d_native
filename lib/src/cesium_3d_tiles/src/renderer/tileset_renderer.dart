@@ -91,25 +91,24 @@ abstract class TilesetRenderer<T> {
   /// @return A Future that resolves to the loaded entity.
   Future<T> loadMarker(RenderableMarker marker);
 
-
-
-  /// Zooms the camera to focus on a specific layer.
+  /// Animates the camera from its current orientation to the model matrix
+  /// specified by [newModelMatrix]
   ///
-  /// This method animates the camera from its current position to a position
-  /// that focuses on the specified layer.
+  /// @param newModelMatrix The model matrix for the camera
+  /// at the end of the animation
   ///
-  /// @param layer The layer to zoom to.
   /// @param duration The duration of the zoom animation.
-  /// @param offset Whether to apply an offset when zooming.
+  ///
   /// @return A Future that completes when the zoom animation is finished.
-  Future<void> zoomTo(Matrix4 newModelMatrix, {Duration duration = const Duration(seconds: 1)}) async {
+  Future<void> zoomTo(Matrix4 newModelMatrix,
+      {Duration duration = const Duration(seconds: 1)}) async {
     final startMatrix = await cameraModelMatrix;
     final startTime = DateTime.now().millisecondsSinceEpoch;
     final endTime = startTime + duration.inMilliseconds;
-    
+
     final startRotation = Quaternion.fromRotation(startMatrix.getRotation());
     final endRotation = Quaternion.fromRotation(newModelMatrix.getRotation());
-    
+
     final startTranslation = startMatrix.getTranslation();
     final endTranslation = newModelMatrix.getTranslation();
 
@@ -126,7 +125,7 @@ abstract class TilesetRenderer<T> {
       final t = (now - startTime) / duration.inMilliseconds;
       final easedT = _easeInOutCubic(t);
 
-  // Interpolate rotation using slerp
+      // Interpolate rotation using slerp
       final interpolatedRotation = slerp(startRotation, endRotation, easedT);
 
       // Interpolate position
@@ -138,10 +137,7 @@ abstract class TilesetRenderer<T> {
 
       // Construct interpolated matrix
       final interpolatedMatrix = Matrix4.compose(
-        interpolatedTranslation,
-        interpolatedRotation,
-        Vector3.all(1.0) // Scale is typically kept constant for camera matrices
-      );
+          interpolatedTranslation, interpolatedRotation, Vector3.all(1.0));
 
       setCameraModelMatrix(interpolatedMatrix);
       Future.delayed(const Duration(milliseconds: 16), animate);
@@ -149,54 +145,52 @@ abstract class TilesetRenderer<T> {
 
     animate();
     return completer.future;
-}
+  }
 
 // Linear interpolation function
-double lerp(double a, double b, double t) {
-  return a + (b - a) * t;
-}
+  double lerp(double a, double b, double t) {
+    return a + (b - a) * t;
+  }
 
 // Quaternion spherical linear interpolation (slerp)
-Quaternion slerp(Quaternion a, Quaternion b, double t) {
-  // Compute the cosine of the angle between the two vectors
-  double dot = a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
+  Quaternion slerp(Quaternion a, Quaternion b, double t) {
+    // Compute the cosine of the angle between the two vectors
+    double dot = a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
 
-  // If the dot product is negative, slerp won't take the shorter path.
-  // Fix by reversing one quaternion.
-  if (dot < 0.0) {
-    b = Quaternion(-b.x, -b.y, -b.z, -b.w);
-    dot = -dot;
-  }
+    // If the dot product is negative, slerp won't take the shorter path.
+    // Fix by reversing one quaternion.
+    if (dot < 0.0) {
+      b = Quaternion(-b.x, -b.y, -b.z, -b.w);
+      dot = -dot;
+    }
 
-  // If the inputs are too close for comfort, linearly interpolate
-  if (dot > 0.9995) {
+    // If the inputs are too close for comfort, linearly interpolate
+    if (dot > 0.9995) {
+      return Quaternion(
+        lerp(a.x, b.x, t),
+        lerp(a.y, b.y, t),
+        lerp(a.z, b.z, t),
+        lerp(a.w, b.w, t),
+      ).normalized();
+    }
+
+    // Calculate the angle between the quaternions
+    double theta0 = acos(dot);
+    double theta = theta0 * t;
+
+    double sinTheta = sin(theta);
+    double sinTheta0 = sin(theta0);
+
+    double s0 = cos(theta) - dot * sinTheta / sinTheta0;
+    double s1 = sinTheta / sinTheta0;
+
     return Quaternion(
-      lerp(a.x, b.x, t),
-      lerp(a.y, b.y, t),
-      lerp(a.z, b.z, t),
-      lerp(a.w, b.w, t),
-    ).normalized();
+      a.x * s0 + b.x * s1,
+      a.y * s0 + b.y * s1,
+      a.z * s0 + b.z * s1,
+      a.w * s0 + b.w * s1,
+    );
   }
-
-  // Calculate the angle between the quaternions
-  double theta0 = acos(dot);
-  double theta = theta0 * t;
-
-  double sinTheta = sin(theta);
-  double sinTheta0 = sin(theta0);
-
-  double s0 = cos(theta) - dot * sinTheta / sinTheta0;
-  double s1 = sinTheta / sinTheta0;
-
-  return Quaternion(
-    a.x * s0 + b.x * s1,
-    a.y * s0 + b.y * s1,
-    a.z * s0 + b.z * s1,
-    a.w * s0 + b.w * s1,
-  );
-}
-
-
 
   ///
   ///
@@ -222,4 +216,5 @@ Quaternion slerp(Quaternion a, Quaternion b, double t) {
   }
 
   Future setDistanceToSurface(double? distance);
+
 }
