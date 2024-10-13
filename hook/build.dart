@@ -5,7 +5,6 @@ import 'package:native_toolchain_c/native_toolchain_c.dart';
 import 'package:path/path.dart' as p;
 import 'package:archive/archive.dart';
 
-
 Logger _prepareLogger(BuildConfig config) {
   var logDir = Directory(
       "${config.packageRoot.toFilePath()}.dart_tool/cesium_3d_native/log/");
@@ -55,40 +54,51 @@ void main(List<String> args) async {
         : await getLibDir(config, logger, targetArch);
 
     logger.info("Using lib dir : ${libDir.path}");
-    final libs = libDir
-        .listSync()
-        .whereType<File>()
-        .where((f) => f.path.endsWith(".a"))
-        .map((f) {
-      var basename = p.basename(f.path);
-      basename = basename.replaceAll(RegExp("^lib"), "");
-      basename = basename.replaceAll(".a", "");
-      return "-l${basename}";
-    });
-    for(final lib in libs) {
-      logger.info("Using lib $lib");
-    }
-    
-    final cbuilder = CBuilder.library(
-      name: packageName,
-      language: Language.cpp,
-      assetName: 'cesium_native/cesium_native.dart',
-      sources: sources,
-      includes: [
-        'native/include',
-        'native/generated/include',
-        'native/thirdparty/include'
-      ],
-      flags: [
+
+    var libs = <String>[];
+    var flags = <String>[];
+    var includes = <String>[
+      'native/include',
+      'native/generated/include',
+      'native/thirdparty/include'
+    ];
+
+    /// Windows
+    if (config.targetOS == OS.windows) {
+      flags.addAll(["/std:c++17", "/MD", "/EHsc"]);
+      flags.addAll(
+          includes.map((i) => "/I${config.packageRoot.toFilePath()}/$i"));
+      flags.addAll(["/DWIN32=1", "/D_DLL=1", "/DRELEASE"]);
+      flags.addAll(sources);
+      flags.addAll(['/link', "/LIBPATH:${libDir.path}", "/DLL"]);
+      sources.clear();
+      includes.clear();
+    } else {
+      libs.addAll(libDir
+          .listSync()
+          .whereType<File>()
+          .where((f) => f.path.endsWith(".a"))
+          .map((f) {
+        var basename = p.basename(f.path);
+        basename = basename.replaceAll(RegExp("^lib"), "");
+        basename = basename.replaceAll(".a", "");
+        return "-l${basename}";
+      }));
+
+      flags.addAll([
         "--std=c++17",
         "-L${libDir.path}",
         "-fPIC",
         "-lcurl",
         "-lssl",
-        "-lcrypto",        
+        "-lcrypto",
         "-lz",
-        if(config.targetOS == OS.android)
-        ...["-landroid","-lidn2", "-lunistring", "-liconv"],
+        if (config.targetOS == OS.android) ...[
+          "-landroid",
+          "-lidn2",
+          "-lunistring",
+          "-liconv"
+        ],
         ...libs,
         if (config.targetOS == OS.iOS || config.targetOS == OS.macOS) ...[
           "-framework",
@@ -100,8 +110,17 @@ void main(List<String> args) async {
           '-mios-version-min=13.0',
           '-framework',
           'Security'
-        ],
-      ],
+        ]
+      ]);
+    }
+
+    final cbuilder = CBuilder.library(
+      name: packageName,
+      language: Language.cpp,
+      assetName: 'cesium_native/cesium_native.dart',
+      sources: sources,
+      includes: includes,
+      flags: flags,
       dartBuildFiles: ['hook/build.dart'],
     );
 
@@ -145,6 +164,29 @@ void main(List<String> args) async {
           os: config.targetOS,
           file: stlPath.uri,
           architecture: config.targetArchitecture));
+    }
+
+     // do we need this?
+    if (config.targetOS == OS.windows) {
+
+      // File("${libDir.path}/libcurl.dll").copySync(config.outputDirectory.toFilePath(windows:true) + "/libcurl.dll");
+      // File("${libDir.path}/libcurl.lib").copySync(config.outputDirectory.toFilePath(windows:true) + "/libcurl.lib");
+      // output.addAsset(
+      //     NativeCodeAsset(
+      //         package: config.packageName,
+      //         name: "libcurl.dll",
+      //         linkMode: DynamicLoadingBundled(),
+      //         os: config.targetOS,
+      //         file: Uri.file("${libDir.path}/libcurl.dll"),
+      //         architecture: config.targetArchitecture));
+      // output.addAsset(
+      //     NativeCodeAsset(
+      //         package: config.packageName,
+      //         name: "libcurl.lib",
+      //         linkMode: DynamicLoadingBundled(),
+      //         os: config.targetOS,
+      //         file: Uri.file("${libDir.path}/libcurl.lib"),
+      //         architecture: config.targetArchitecture));
     }
   });
 }

@@ -8,6 +8,10 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#ifdef _WIN32
+#include "CesiumTilesetWin32.h"
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 namespace DartCesiumNative {
@@ -142,91 +146,92 @@ typedef struct SerializedCesiumGltfModel SerializedCesiumGltfModel;
 // Initializes all bindings. Must be called before any other CesiumTileset_ function.
 // numThreads refers to the number of threads that will be created for the Async system (job queue).
 //
-void CesiumTileset_initialize(uint32_t numThreads);
+API_EXPORT void CesiumTileset_initialize(uint32_t numThreads);
 
-void CesiumTileset_pumpAsyncQueue();
+API_EXPORT void CesiumTileset_pumpAsyncQueue();
 
 // Create a Tileset from a URL
-CesiumTileset* CesiumTileset_create(const char* url, void(*onRootTileAvailableEvent)());
+API_EXPORT CesiumTileset* CesiumTileset_create(const char* url, void(*onRootTileAvailableEvent)());
 
 // Create a Tileset from a Cesium ion asset. 
-CesiumTileset* CesiumTileset_createFromIonAsset(int64_t assetId, const char* accessToken, void(*onRootTileAvailableEvent)());
+API_EXPORT CesiumTileset* CesiumTileset_createFromIonAsset(int64_t assetId, const char* accessToken, void(*onRootTileAvailableEvent)());
 
-float CesiumTileset_computeLoadProgress(CesiumTileset* tileset);
+API_EXPORT float CesiumTileset_computeLoadProgress(CesiumTileset* tileset);
 
-int CesiumTileset_getLastFrameNumber(CesiumTileset* tileset);
+API_EXPORT int CesiumTileset_getLastFrameNumber(CesiumTileset* tileset);
 
-int CesiumTileset_getNumTilesLoaded(CesiumTileset* tileset);
+API_EXPORT int CesiumTileset_getNumTilesLoaded(CesiumTileset* tileset);
 
 // Returns true if an error was encountered attempting to load this tileset. 
-int CesiumTileset_hasLoadError(CesiumTileset* tileset);
+API_EXPORT int CesiumTileset_hasLoadError(CesiumTileset* tileset);
 
 // Retrieve the error message encountered when loading this tileset. Returns NULL if none.
-void CesiumTileset_getErrorMessage(CesiumTileset* tileset, char* out);
+API_EXPORT void CesiumTileset_getErrorMessage(CesiumTileset* tileset, char* out);
 
 // Destroy a Tileset. This is an asynchronous operation; pass a callback as onTileDestroyEvent to be notified when destruction is complete.
-void CesiumTileset_destroy(CesiumTileset* tileset, void(*onTileDestroyEvent)());
+API_EXPORT void CesiumTileset_destroy(CesiumTileset* tileset, void(*onTileDestroyEvent)());
 
 // Update the view and get the number of tiles to render
-int CesiumTileset_updateView(CesiumTileset* tileset, const CesiumViewState viewState, float deltaTime);
+API_EXPORT int CesiumTileset_updateView(CesiumTileset* tileset, const CesiumViewState viewState, float deltaTime);
 
 // Asynchronously update the view and get the number of tiles to render
-void CesiumTileset_updateViewAsync(CesiumTileset* tileset, const CesiumViewState viewState, float deltaTime, void(*callback)(int));
+API_EXPORT void CesiumTileset_updateViewAsync(CesiumTileset* tileset, const CesiumViewState viewState, float deltaTime, void(*callback)(int));
 
-CesiumCartographic CesiumTileset_getPositionCartographic(CesiumViewState viewState);
+API_EXPORT CesiumCartographic CesiumTileset_getPositionCartographic(CesiumViewState viewState);
 
 // Return the number of tiles kicked on the last update. This will remain valid until the next call to CesiumTileset_updateView.
-int32_t CesiumTileset_getTilesKicked(CesiumTileset* tileset);
+API_EXPORT int32_t CesiumTileset_getTilesKicked(CesiumTileset* tileset);
 
 // Returns the tile to render at this frame at the given index. Returns NULL if index is out-of-bounds.
-CesiumTile* CesiumTileset_getTileToRenderThisFrame(CesiumTileset* tileset, int index);
+API_EXPORT CesiumTile* CesiumTileset_getTileToRenderThisFrame(CesiumTileset* tileset, int index);
 
 // Get the render data for a specific tile
-void CesiumTileset_getTileRenderData(CesiumTileset* tileset, int index, void** renderData);
+API_EXPORT void CesiumTileset_getTileRenderData(CesiumTileset* tileset, int index, void** renderData);
 
 // Get the load state for the tile at the given index
-CesiumTileLoadState CesiumTileset_getTileLoadState(CesiumTile* tile);
+API_EXPORT CesiumTileLoadState CesiumTileset_getTileLoadState(CesiumTile* tile);
 
 // Get the type of content for the tile at the given index
-CesiumTileContentType CesiumTileset_getTileContentType(CesiumTile* tile);
+API_EXPORT CesiumTileContentType CesiumTileset_getTileContentType(CesiumTile* tile);
 
-CesiumTilesetRenderableTiles CesiumTileset_getRenderableTiles(CesiumTile* cesiumTile);
+API_EXPORT CesiumTilesetRenderableTiles CesiumTileset_getRenderableTiles(CesiumTile* cesiumTile);
 
-int32_t CesiumTileset_getNumberOfTilesLoaded(CesiumTileset* tileset);
+API_EXPORT int32_t CesiumTileset_getNumberOfTilesLoaded(CesiumTileset* tileset);
 
-CesiumTile* CesiumTileset_getRootTile(CesiumTileset* tileset);
+API_EXPORT CesiumTile* CesiumTileset_getRootTile(CesiumTileset* tileset);
 
-CesiumBoundingVolume CesiumTile_getBoundingVolume(CesiumTile* tile, bool convertToOrientedBox);
+API_EXPORT CesiumBoundingVolume CesiumTile_getBoundingVolume(CesiumTile* tile, bool convertToOrientedBox);
 
-double CesiumTile_squaredDistanceToBoundingVolume(CesiumTile* oTile, CesiumViewState oViewState);
+API_EXPORT double CesiumTile_squaredDistanceToBoundingVolume(CesiumTile* oTile, CesiumViewState oViewState);
 
-double3 CesiumTile_getBoundingVolumeCenter(CesiumTile* tile);
+API_EXPORT double3 CesiumTile_getBoundingVolumeCenter(CesiumTile* tile);
 
-double4x4 CesiumTile_getTransform(CesiumTile* tile);
+API_EXPORT double4x4 CesiumTile_getTransform(CesiumTile* tile);
 
 // Get a handle to the CesiumGltf::Model object for a given tile
-CesiumGltfModel* CesiumTile_getModel(CesiumTile* tile);
+API_EXPORT CesiumGltfModel* CesiumTile_getModel(CesiumTile* tile);
 
-double4x4 CesiumGltfModel_getTransform(CesiumGltfModel* model);
+API_EXPORT double4x4 CesiumGltfModel_getTransform(CesiumGltfModel* model);
 
 // Check if a tile has a valid model
-int CesiumTile_hasModel(CesiumTile* tile);
+API_EXPORT int CesiumTile_hasModel(CesiumTile* tile);
 
-CesiumTileSelectionState CesiumTile_getTileSelectionState(CesiumTile* tile, int frameNumber);
+API_EXPORT CesiumTileSelectionState CesiumTile_getTileSelectionState(CesiumTile* tile, int frameNumber);
 
 // Get the number of meshes in the model
-int32_t CesiumGltfModel_getMeshCount(CesiumGltfModel* model);
+API_EXPORT int32_t CesiumGltfModel_getMeshCount(CesiumGltfModel* model);
 
 // Get the number of materials in the model
-int32_t CesiumGltfModel_getMaterialCount(CesiumGltfModel* model);
+API_EXPORT int32_t CesiumGltfModel_getMaterialCount(CesiumGltfModel* model);
 
 // Get the number of textures in the model
-int32_t CesiumGltfModel_getTextureCount(CesiumGltfModel* model);
+API_EXPORT int32_t CesiumGltfModel_getTextureCount(CesiumGltfModel* model);
 
-SerializedCesiumGltfModel CesiumGltfModel_serialize(CesiumGltfModel* opaqueModel);
-void CesiumGltfModel_serializeAsync(CesiumGltfModel* opaqueModel, void(*callback)(SerializedCesiumGltfModel));
+API_EXPORT SerializedCesiumGltfModel CesiumGltfModel_serialize(CesiumGltfModel* opaqueModel);
 
-void CesiumGltfModel_free_serialized(SerializedCesiumGltfModel serialized);
+API_EXPORT void CesiumGltfModel_serializeAsync(CesiumGltfModel* opaqueModel, void(*callback)(SerializedCesiumGltfModel));
+
+API_EXPORT void CesiumGltfModel_free_serialized(SerializedCesiumGltfModel serialized);
 
 #ifdef __cplusplus
 }

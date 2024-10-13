@@ -13,6 +13,8 @@
 #include <string>
 #include <vector>
 
+#undef OPAQUE
+
 namespace CesiumGltf {
 /**
  * @brief The material appearance of a primitive.
