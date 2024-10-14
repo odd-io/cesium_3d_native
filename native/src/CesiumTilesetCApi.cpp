@@ -1,3 +1,5 @@
+#include "CesiumTilesetCApi.h"
+
 #undef OPAQUE
 
 #ifdef __ANDROID__
@@ -38,8 +40,6 @@
 #include <CesiumGeospatial/Ellipsoid.h>
 #include <CesiumGltfWriter/GltfWriter.h>
 #include <CesiumGltfContent/GltfUtilities.h>
-
-#include "CesiumTilesetCApi.h"
 
 // #ifdef _WIN32
 // #include "HttpLibAssetAccessor.hpp"
