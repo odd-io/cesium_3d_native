@@ -1,17 +1,4 @@
-#include "CesiumTilesetCApi.h"
-
-#include <Cesium3DTilesSelection/Tileset.h>
-#include <Cesium3DTilesSelection/TilesetExternals.h>
-#include <CesiumAsync/IAssetAccessor.h>
-#include <CesiumAsync/AsyncSystem.h>
-#include <Cesium3DTilesContent/registerAllTileContentTypes.h>
-#include <Cesium3DTilesSelection/BoundingVolume.h>
-#include <CesiumGeometry/BoundingSphere.h>
-#include <CesiumGeometry/OrientedBoundingBox.h>
-#include <CesiumGeospatial/BoundingRegion.h>
-#include <CesiumGeospatial/Ellipsoid.h>
-#include <CesiumGltfWriter/GltfWriter.h>
-#include <CesiumGltfContent/GltfUtilities.h>
+#undef OPAQUE
 
 #ifdef __ANDROID__
 #include "spdlog/sinks/android_sink.h"
@@ -27,11 +14,6 @@
 #include <thread>
 #include <atomic>
 #include <functional>
-
-#include "CurlAssetAccessor.hpp"
-#include "PrepareRenderer.hpp"
-#include "Base64Encode.hpp"
-
 #include <openssl/bio.h>
 #include <openssl/evp.h>
 #include <openssl/buffer.h>
@@ -44,12 +26,29 @@
 #include <spdlog/async.h>
 #include <spdlog/sinks/basic_file_sink.h>
 
-#include <queue>
-#include <mutex>
-#include <condition_variable>
-#include <thread>
-#include <atomic>
-#include <functional>
+#include <Cesium3DTilesSelection/Tileset.h>
+#include <Cesium3DTilesSelection/TilesetExternals.h>
+#include <CesiumAsync/IAssetAccessor.h>
+#include <CesiumAsync/AsyncSystem.h>
+#include <Cesium3DTilesContent/registerAllTileContentTypes.h>
+#include <Cesium3DTilesSelection/BoundingVolume.h>
+#include <CesiumGeometry/BoundingSphere.h>
+#include <CesiumGeometry/OrientedBoundingBox.h>
+#include <CesiumGeospatial/BoundingRegion.h>
+#include <CesiumGeospatial/Ellipsoid.h>
+#include <CesiumGltfWriter/GltfWriter.h>
+#include <CesiumGltfContent/GltfUtilities.h>
+
+#include "CesiumTilesetCApi.h"
+
+// #ifdef _WIN32
+// #include "HttpLibAssetAccessor.hpp"
+// #else
+#include "CurlAssetAccessor.hpp"
+// #endif
+
+#include "PrepareRenderer.hpp"
+#include "Base64Encode.hpp"
 
 namespace DartCesiumNative {
 
@@ -132,13 +131,17 @@ static std::shared_ptr<Cesium3DTilesSelection::IPrepareRendererResources> pResou
 static std::shared_ptr<CesiumAsync::IAssetAccessor> pAssetAccessor;
 static std::shared_ptr<CesiumUtility::CreditSystem> pMockedCreditSystem;
 static std::thread *main;
-void CesiumTileset_initialize(uint32_t numThreads) {
+API_EXPORT void CesiumTileset_initialize(uint32_t numThreads) {
     if(pResourcePreparer) {
         return;
     }
     
     asyncSystem = CesiumAsync::AsyncSystem {  std::make_shared<SimpleTaskProcessor>(numThreads) };
+    // #ifndef _WIN32
     pAssetAccessor = std::dynamic_pointer_cast<CesiumAsync::IAssetAccessor>(std::make_shared<CurlAssetAccessor>());
+    // #else
+    // pAssetAccessor = std::dynamic_pointer_cast<CesiumAsync::IAssetAccessor>(std::make_shared<HttplibAssetAccessor>());
+    // #endif
     pMockedCreditSystem = std::make_shared<CesiumUtility::CreditSystem>();
     pResourcePreparer = std::dynamic_pointer_cast<Cesium3DTilesSelection::IPrepareRendererResources>(std::make_shared<SimplePrepareRendererResource>());
 
@@ -410,7 +413,7 @@ static void recurse(Tile* tile, const std::function<void(Tile* const)>& visitor)
 
 CesiumTilesetRenderableTiles CesiumTileset_getRenderableTiles(CesiumTile* cesiumTile) {
     
-    std::set<const Tile* const> content;
+    std::set<const Tile*> content;
     auto* tile = reinterpret_cast<Tile*>(cesiumTile);
     
     const auto& visitor = [&](Tile* const tile) {
