@@ -111,41 +111,48 @@ void main(List<String> args) async {
       logger: logger,
     );
 
-    if (config.targetOS == OS.android && !config.dryRun) {
-      var compilerPath = config.cCompiler.compiler!.path;
+    // this conflicts with other Dart packages that ship libc++_shared.so (e.g. 
+    // Thermion). I've commented out rather than deleted in case we want to 
+    // reintroduce in future - if building without a package that ships 
+    // libc++_shared.so, I think the straightforward option will be to 
+    // add to Android's jniLibs for the app.
 
-      if (Platform.isWindows && compilerPath.startsWith("/")) {
-        compilerPath = compilerPath.substring(1);
-      }
+    // if (config.targetOS == OS.android && !config.dryRun) {
+    //   var compilerPath = config.cCompiler.compiler!.path;
 
-      var ndkRoot = File(compilerPath)
-          .parent
-          .parent
-          .uri
-          .toFilePath(windows: true)
-          .replaceAll("//", "/");
+    //   if (Platform.isWindows && compilerPath.startsWith("/")) {
+    //     compilerPath = compilerPath.substring(1);
+    //   }
 
-      var stlPath = File([
-        ndkRoot,
-        "sysroot",
-        "usr",
-        "lib",
-        targetArch,
-        "libc++_shared.so"
-      ].join(Platform.pathSeparator));
+    //   var ndkRoot = File(compilerPath)
+    //       .parent
+    //       .parent
+    //       .uri
+    //       .toFilePath(windows: true)
+    //       .replaceAll("//", "/");
 
-      if (!stlPath.existsSync()) {
-        stlPath =
-            File(stlPath.path.replaceAll("arm64-v8a", "aarch64-linux-android"));
-      }
-      output.addAsset(NativeCodeAsset(
-          package: packageName,
-          name: "libc++_shared.so",
-          linkMode: DynamicLoadingBundled(),
-          os: config.targetOS,
-          file: stlPath.uri,
-          architecture: config.targetArchitecture));
-    }
+    //   var stlPath = File([
+    //     ndkRoot,
+    //     "sysroot",
+    //     "usr",
+    //     "lib",
+    //     targetArch,
+    //     "libc++_shared.so"
+    //   ].join(Platform.pathSeparator));
+
+    //   if (!stlPath.existsSync()) {
+    //     stlPath =
+    //         File(stlPath.path.replaceAll("arm64-v8a", "aarch64-linux-android"));
+    //   }
+      
+    //   output.addAsset(NativeCodeAsset(
+    //       package: packageName,
+    //       name: "libc++_shared.so",
+    //       linkMode: LookupInProcess(),
+    //       os: config.targetOS,
+    //       // file: stlPath.uri,
+    //       architecture: config.targetArchitecture));
+    // }
   });
 }
 
