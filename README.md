@@ -159,6 +159,14 @@ If you need to (re)build the Cesium Native libraries (e.g. to update the version
 2) run `build.sh`, which will build for all target platforms
 3) copy the headers from the Cesium Native build dir to the `include` and `generated/include` directories 
 
+On Windows, I needed to manually insert:
+
+```
+#undef OPAQUE
+```
+
+to Material.h for the Dart package to compile, there's obviously some symbol clash (I wasn't able to locate exactly where). We should be able to at least move this somewhere into our native code so we don't have to edit the Cesium Native headers.
+
 ### Updating FFI bindings
 
 If you have updated `CesiumTilesetCApi.h`, you will need to regenerate the FFI bindings:
