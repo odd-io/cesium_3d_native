@@ -10,6 +10,8 @@
 
 #ifdef _WIN32
 #include "CesiumTilesetWin32.h"
+#else
+#define API_EXPORT __attribute__((visibility("default")))
 #endif
 
 #ifdef __cplusplus
