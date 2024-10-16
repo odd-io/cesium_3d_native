@@ -100,10 +100,11 @@ abstract class TilesetManager {
   }
 
 
-  /// Gets the distance from the camera to the surface of the first layer.
+  /// Gets the distance from [point] to the surface of the first layer. 
+  /// If [point] is null, the current camera position will be used.
   ///
   /// @return The distance to the surface, or null if there are no layers.
-  Future<double?> getDistanceToSurface();
+  Future<double?> getDistanceToSurface({Vector3? point});
 
   ///
   /// Marks the camera as dirty, indicating that the Cesium Tileset view should 

@@ -5,6 +5,7 @@ import 'package:cesium_3d_tiles/src/cesium_3d_tiles/src/renderer/markers.dart';
 import 'package:cesium_3d_tiles/src/cesium_3d_tiles/src/renderer/tileset_manager.dart';
 import 'package:cesium_3d_tiles/src/cesium_3d_tiles/src/renderer/tileset_renderer.dart';
 import 'package:cesium_3d_tiles/src/cesium_native/src/cesium_native.dart';
+import 'package:vector_math/vector_math_64.dart';
 
 import '../cesium_3d_tile.dart';
 
@@ -196,11 +197,11 @@ class QueueingTilesetManager<T> extends TilesetManager {
   ///
   /// @return The distance to the surface, or null if there are no layers.
   @override
-  Future<double?> getDistanceToSurface() async {
+  Future<double?> getDistanceToSurface({Vector3? point}) async {
     if (_layers.isEmpty) {
       return null;
     }
-    return _layers.keys.first.getDistanceToSurface();
+    return _layers.keys.first.getDistanceToSurface(point: point);
   }
 
   /// Disposes of the renderer and frees any resources it was using.

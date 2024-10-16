@@ -10,20 +10,19 @@ import 'tileset_manager.dart';
 import 'tileset_renderer.dart';
 
 ///
-/// Below is an example implementation of a TilesetManager that runs on a 
+/// Below is an example implementation of a TilesetManager that runs on a
 /// background isolate.
-/// 
-/// However, we currently cannot pin isolates to threads, meaning that 
-/// any cesium_native functions may be called on different threads at any 
+///
+/// However, we currently cannot pin isolates to threads, meaning that
+/// any cesium_native functions may be called on different threads at any
 /// given time. This is not permitted by the cesium_native library.
 ///
-/// This implementation therefore won't be usable until isolate-pinning is 
+/// This implementation therefore won't be usable until isolate-pinning is
 /// available in Dart/Flutter.
-/// 
+///
 /// https://github.com/dart-lang/sdk/issues/46943
 ///
 ///
-
 
 void _isolateEntryPoint(List<dynamic> message) {
   SendPort mainSendPort = message[0] as SendPort;
@@ -79,8 +78,7 @@ class IsolateTilesetManager extends TilesetManager {
     _receivePort.listen(_handleMessage);
   }
 
-  static Future<IsolateTilesetManager> spawn(
-      TilesetRenderer renderer) async {
+  static Future<IsolateTilesetManager> spawn(TilesetRenderer renderer) async {
     if (_instance != null) return _instance!;
 
     final receivePort = ReceivePort();
@@ -166,8 +164,12 @@ class IsolateTilesetManager extends TilesetManager {
   }
 
   @override
-  Future<double?> getDistanceToSurface() =>
-      _sendMessage<double?>('getDistanceToSurface');
+  Future<double?> getDistanceToSurface({Vector3? point}) {
+    if (point != null) {
+      throw UnimplementedError("TODO");
+    }
+    return _sendMessage<double?>('getDistanceToSurface');
+  }
 
   @override
   Future remove(Cesium3DTileset layer) => _sendMessage('remove', [layer]);

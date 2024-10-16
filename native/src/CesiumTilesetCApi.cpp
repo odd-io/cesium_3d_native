@@ -333,7 +333,7 @@ CesiumCartographic CesiumTileset_getPositionCartographic(CesiumViewState viewSta
         glm::dvec3(viewState.up[0], viewState.up[1], viewState.up[2]),
         glm::dvec2(viewState.viewportWidth, viewState.viewportHeight),
         viewState.horizontalFov,
-        viewState.horizontalFov * viewState.viewportHeight / viewState.viewportWidth,
+        viewState.verticalFov,
         ellipsoid
     );
     CesiumCartographic position;
@@ -344,6 +344,24 @@ CesiumCartographic CesiumTileset_getPositionCartographic(CesiumViewState viewSta
         position.latitude = val.latitude;
     }
     return position;
+}
+
+API_EXPORT CesiumCartographic CesiumTileset_cartesianToCartographic(double x, double y, double z) {
+
+    glm::dvec3 point { x, y, z};
+    auto ellipsoid = CesiumGeospatial::Ellipsoid::WGS84;
+    
+    std::optional<CesiumGeospatial::Cartographic> position = ellipsoid.cartesianToCartographic(point);
+
+    CesiumCartographic returnValue;
+
+    if(position.has_value()) {
+        returnValue.height = position.value().height;
+        returnValue.latitude = position.value().latitude;
+        returnValue.longitude = position.value().longitude;
+    }
+    
+    return returnValue;
 }
 
 

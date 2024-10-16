@@ -217,6 +217,14 @@ class CesiumNative {
   ///
   ///
   ///
+  CartographicPosition getCartographicPositionForPoint(Vector3 point) {
+    final pos = g.CesiumTileset_cartesianToCartographic(point.x, point.y, point.z);
+    return CartographicPosition(pos.latitude, pos.longitude, pos.height);
+  }
+
+  ///
+  ///
+  ///
   int getNumTilesKicked(CesiumTileset tileset) {
     return g.CesiumTileset_getTilesKicked(tileset._ptr);
   }

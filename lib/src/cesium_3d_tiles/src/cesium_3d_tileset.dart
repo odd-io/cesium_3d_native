@@ -9,16 +9,16 @@ import 'package:vector_math/vector_math_64.dart';
 
 ///
 /// A Tileset can be assigned a numeric layer from 0 to 6 (inclusive).
-/// 
+///
 /// This is used to group tilesets together if you want to toggle visibility.
 ///
-/// This is also used to determine rendering priority. Higher values are 
-/// rendered after lower values (meaning if depth testing is disabled, higher  
+/// This is also used to determine rendering priority. Higher values are
+/// rendered after lower values (meaning if depth testing is disabled, higher
 /// render layers will always appear "on top" of lower render layers)
-/// 
-/// The renderer should always enable depth testing at render layer 0 and 
+///
+/// The renderer should always enable depth testing at render layer 0 and
 /// disable depth testing for all higher layers.
-/// 
+///
 /// Markers are always at render layer 6.
 ///
 enum RenderLayer {
@@ -99,7 +99,12 @@ class Cesium3DTileset {
   ///
   ///
   ///
-  double? getDistanceToSurface() {
+  double? getDistanceToSurface({Vector3? point}) {
+    if (point != null) {
+      final cartographicPosition =
+          CesiumNative.instance.getCartographicPositionForPoint((gltfToEcef * point!));
+      return cartographicPosition.height;
+    }
     if (rootTile == null) {
       return null;
     }

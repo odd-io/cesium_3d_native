@@ -179,7 +179,11 @@ API_EXPORT int CesiumTileset_updateView(CesiumTileset* tileset, const CesiumView
 // Asynchronously update the view and get the number of tiles to render
 API_EXPORT void CesiumTileset_updateViewAsync(CesiumTileset* tileset, const CesiumViewState viewState, float deltaTime, void(*callback)(int));
 
+// Gets the cartographic position of the camera in its current orientation.
 API_EXPORT CesiumCartographic CesiumTileset_getPositionCartographic(CesiumViewState viewState);
+
+// Gets the cartographic position of the given point.
+API_EXPORT CesiumCartographic CesiumTileset_cartesianToCartographic(double x, double y, double z);
 
 // Return the number of tiles kicked on the last update. This will remain valid until the next call to CesiumTileset_updateView.
 API_EXPORT int32_t CesiumTileset_getTilesKicked(CesiumTileset* tileset);
