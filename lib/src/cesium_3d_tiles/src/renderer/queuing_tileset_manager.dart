@@ -37,6 +37,7 @@ class QueueingTilesetManager<T> extends TilesetManager {
   DateTime? _lastTileUpdate;
 
   final _layers = <Cesium3DTileset, List<CesiumTile>>{};
+  final _layersToRemove = <Cesium3DTileset>{};
   final _entities = <Cesium3DTile, T>{};
 
   final TilesetRenderer<T> renderer;
@@ -57,6 +58,20 @@ class QueueingTilesetManager<T> extends TilesetManager {
 
     _handlingQueue = true;
 
+    for (final layer in _layersToRemove) {
+      for (final tile in _renderable[layer]!) {
+        final entity = _entities[tile];
+        if (entity != null) {
+          await renderer.removeEntity(entity);
+        }
+      }
+
+      _layers.remove(layer);
+      await layer.dispose();
+      _renderable.remove(layer);
+    }
+    _layersToRemove.clear();
+
     var dimensions = await renderer.viewportDimensions;
     var now = DateTime.now();
     var msSinceLastTileUpdate = _lastTileUpdate == null
@@ -74,8 +89,8 @@ class QueueingTilesetManager<T> extends TilesetManager {
       var item = _loadQueue.first;
       await _load(item);
       _loadQueue.remove(item);
-    } 
-    
+    }
+
     while (_cullQueue.isNotEmpty) {
       var tile = _cullQueue.first;
       await _remove(tile);
@@ -181,16 +196,7 @@ class QueueingTilesetManager<T> extends TilesetManager {
     if (!_layers.containsKey(layer)) {
       throw Exception("Layer does not exist in this renderer");
     }
-    for (final tile in _renderable[layer]!) {
-      final entity = _entities[tile];
-      if (entity != null) {
-        await renderer.removeEntity(entity);
-      }
-    }
-
-    _layers.remove(layer);
-    await layer.dispose();
-    _renderable.remove(layer);
+    _layersToRemove.add(layer);
   }
 
   /// Gets the distance from the camera to the surface of the first layer.
@@ -257,7 +263,7 @@ class QueueingTilesetManager<T> extends TilesetManager {
               (await renderer.horizontalFovInRadians),
               (await renderer.verticalFovInRadians),
               viewport.width.toDouble(),
-              viewport.height.toDouble()) )
+              viewport.height.toDouble()))
           .toSet();
 
       // if any tiles are no longer renderable, we can remove them straight away
@@ -306,5 +312,4 @@ class QueueingTilesetManager<T> extends TilesetManager {
     }
     _updating = false;
   }
-
 }
