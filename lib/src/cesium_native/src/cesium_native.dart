@@ -9,6 +9,7 @@ import 'package:cesium_3d_tiles/src/cesium_native/src/cesium_native.g.dart'
 import 'package:cesium_3d_tiles/src/cesium_native/src/cesium_bounding_volume.dart';
 import 'package:cesium_3d_tiles/src/cesium_native/src/cesium_view.dart';
 import 'package:ffi/ffi.dart';
+import 'package:logging/logging.dart';
 import 'package:vector_math/vector_math_64.dart';
 
 import 'cesium_tile_selection_state.dart';
@@ -53,6 +54,7 @@ enum CesiumTileLoadState {
 }
 
 class CesiumNative {
+  final _logger = Logger("CesiumNative");
   // error message
   static late Pointer<Char> _errorMessage;
 
@@ -184,10 +186,10 @@ class CesiumNative {
     start = DateTime.now();
     g.CesiumTileset_updateViewAsync(
         tileset._ptr, viewStruct, delta, callback.nativeFunction);
-    var elapsed = DateTime.now().millisecondsSinceEpoch - start.millisecondsSinceEpoch;
-    if(elapsed > 50) {
-    print(
-        "CesiumTileset_updateViewAsync completed in ${elapsed}ms");
+    var elapsed =
+        DateTime.now().millisecondsSinceEpoch - start.millisecondsSinceEpoch;
+    if (elapsed > 50) {
+      _logger.warning("CesiumTileset_updateViewAsync completed in ${elapsed}ms");
     }
     int waited = 0;
     await Future.delayed(Duration.zero);
@@ -200,7 +202,7 @@ class CesiumNative {
       throw Exception("Unknown error updating tileset view");
     }
     if (waited > 0) {
-      print("Waited for $waited ms to complete");
+      _logger.warning("Waited for $waited ms to complete");
     }
     tileset._lastUpdate = now;
     return numTiles;
@@ -218,8 +220,19 @@ class CesiumNative {
   ///
   ///
   CartographicPosition getCartographicPositionForPoint(Vector3 point) {
-    final pos = g.CesiumTileset_cartesianToCartographic(point.x, point.y, point.z);
+    final pos =
+        g.CesiumTileset_cartesianToCartographic(point.x, point.y, point.z);
     return CartographicPosition(pos.latitude, pos.longitude, pos.height);
+  }
+
+  ///
+  ///
+  ///
+  Vector3 getCartesianPositionForCartographic(double latitude, double longitude,
+      {double height = 0}) {
+    final pos =
+        g.CesiumTileset_cartographicToCartesian(latitude, longitude, height);
+    return Vector3(pos.x, pos.y, pos.z);
   }
 
   ///
@@ -371,7 +384,7 @@ class CesiumNative {
   CesiumGltfModel? getModel(CesiumTile tile) {
     var model = g.CesiumTile_getModel(tile);
     if (model == nullptr) {
-      print(
+      _logger.warning(
           "Failed to retrieve model. Check that this tile actually has render content.");
       return null;
     }

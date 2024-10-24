@@ -97,6 +97,13 @@ external CesiumCartographic CesiumTileset_cartesianToCartographic(
   double z,
 );
 
+@ffi.Native<double3 Function(ffi.Double, ffi.Double, ffi.Double)>()
+external double3 CesiumTileset_cartographicToCartesian(
+  double latitude,
+  double longitude,
+  double height,
+);
+
 @ffi.Native<ffi.Int32 Function(ffi.Pointer<CesiumTileset>)>()
 external int CesiumTileset_getTilesKicked(
   ffi.Pointer<CesiumTileset> tileset,

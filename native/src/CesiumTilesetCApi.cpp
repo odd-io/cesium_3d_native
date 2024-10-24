@@ -364,6 +364,18 @@ API_EXPORT CesiumCartographic CesiumTileset_cartesianToCartographic(double x, do
     return returnValue;
 }
 
+API_EXPORT double3 CesiumTileset_cartographicToCartesian(double latitude, double longitude, double height) {
+    CesiumGeospatial::Cartographic cartographic { longitude, latitude, height };
+        
+    auto ellipsoid = CesiumGeospatial::Ellipsoid::WGS84;
+    
+    glm::dvec3 point = ellipsoid.cartographicToCartesian(cartographic);
+
+    double3 returnValue { point.x, point.y, point.z };
+    
+    return returnValue;
+}
+
 
 int CesiumTileset_getTilesKicked(CesiumTileset* tileset) {
     return static_cast<int>(tileset->lastUpdateResult.tilesKicked);

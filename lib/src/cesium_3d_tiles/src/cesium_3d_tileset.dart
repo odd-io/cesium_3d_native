@@ -3,6 +3,7 @@ import 'dart:ffi';
 import 'dart:math';
 import 'dart:typed_data';
 import 'package:cesium_3d_tiles/src/cesium_native/cesium_native.dart';
+import 'package:logging/logging.dart';
 import 'cesium_3d_tile.dart';
 import 'transforms.dart';
 import 'package:vector_math/vector_math_64.dart';
@@ -33,6 +34,8 @@ enum RenderLayer {
 /// A high-level interface for a Cesium 3D Tiles tileset.
 ///
 class Cesium3DTileset {
+
+  final _logger = Logger("Cesium3DTileset");
   ///
   /// A name used for debugging.
   ///
@@ -97,12 +100,13 @@ class Cesium3DTileset {
   }
 
   ///
-  ///
+  /// Returns the distance from [point] to the nearest point on the WGS84
+  /// ellipsoid.
   ///
   double? getDistanceToSurface({Vector3? point}) {
     if (point != null) {
-      final cartographicPosition =
-          CesiumNative.instance.getCartographicPositionForPoint((gltfToEcef * point!));
+      final cartographicPosition = CesiumNative.instance
+          .getCartographicPositionForPoint((gltfToEcef * point));
       return cartographicPosition.height;
     }
     if (rootTile == null) {
@@ -114,7 +118,8 @@ class Cesium3DTileset {
   }
 
   ///
-  ///
+  /// Returns the distance from the camera to the nearest point on the bounding
+  /// volume of the WGS84 ellipsoid.
   ///
   double? getDistanceToBoundingVolume() {
     if (rootTile == null) {
@@ -122,6 +127,18 @@ class Cesium3DTileset {
     }
     return sqrt(CesiumNative.instance
         .squaredDistanceToBoundingVolume(_view, rootTile!));
+  }
+
+  ///
+  /// Returns the position (in glTF/Cartesian coordinates) of the given
+  /// cartographic position.
+  /// 
+  static Vector3 cartographicToCartesian(double latitude, double longitude,
+      {double height = 0}) {
+    final cartesian = CesiumNative.instance.getCartesianPositionForCartographic(
+        latitude, longitude,
+        height: height);
+    return ecefToGltf * cartesian;
   }
 
   ///
@@ -208,8 +225,8 @@ class Cesium3DTileset {
   Future<Uint8List?> loadGltf(CesiumTile tile) async {
     if (!_models.containsKey(tile)) {
       var model = CesiumNative.instance.getModel(tile);
-      if (model == null) {
-        print("Failed to load");
+      if (model == null) {        
+        _logger.severe("Failed to load");
         return null;
       }
       var serialized = await CesiumNative.instance.serializeGltfData(model);
