@@ -1,5 +1,5 @@
 import 'dart:async';
-
+import 'dart:io';
 import 'package:cesium_3d_tiles/src/cesium_3d_tiles/src/cesium_3d_tileset.dart';
 import 'package:cesium_3d_tiles/src/cesium_3d_tiles/src/renderer/markers.dart';
 import 'package:cesium_3d_tiles/src/cesium_3d_tiles/src/renderer/tileset_manager.dart';
@@ -257,9 +257,15 @@ class QueueingTilesetManager<T> extends TilesetManager {
     _updating = true;
     var viewport = await renderer.viewportDimensions;
     final layers = _layers.keys.toList();
+    final modelMatrix = await renderer.cameraModelMatrix;
+    final cameraPosition = modelMatrix.getTranslation();
+    final forward = -modelMatrix.forward;
+    final up = modelMatrix.up;
     for (final layer in layers) {
       var renderable = (await layer.updateCameraAndViewport(
-              await renderer.cameraModelMatrix,
+              cameraPosition,
+              up,
+              forward,
               (await renderer.horizontalFovInRadians),
               (await renderer.verticalFovInRadians),
               viewport.width.toDouble(),
@@ -281,7 +287,7 @@ class QueueingTilesetManager<T> extends TilesetManager {
             if (!_loaded.contains(tile)) {
               _loadQueue.add(tile);
             }
-            _reveal(tile);
+            await _reveal(tile);
           case CesiumTileSelectionState.Refined:
             _loadQueue.remove(tile);
             if (_loaded.contains(tile)) {
@@ -304,7 +310,6 @@ class QueueingTilesetManager<T> extends TilesetManager {
         }
       }
     }
-    final cameraPosition = (await renderer.cameraModelMatrix).getTranslation();
     for (final marker in _markers.entries) {
       bool isVisible = (cameraPosition - marker.value.position).length <
           marker.value.visibilityDistance;
