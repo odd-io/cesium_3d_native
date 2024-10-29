@@ -58,12 +58,6 @@ abstract class TilesetManager {
       throw Exception("Root tile not set or not yet loaded");
     }
 
-    return _getCameraTransformForTile(tileset, offset: offset);
-
-  }
-
-  Future<Matrix4> _getCameraTransformForTile(Cesium3DTileset tileset,
-      {bool offset = true}) async {
     var position = tileset.getTileCenter(tileset.rootTile!);
     if (position == null) {
       throw Exception(
@@ -75,14 +69,8 @@ abstract class TilesetManager {
       if (position.length == 0) {
         position = extent;
       }
-      // Calculate the direction vector from the center to the position
-      Vector3 direction = position.normalized();
-
-      // Scale the direction vector by the extent
-      Vector3 offsetVector = direction * extent.length;
-
       // Apply the offset to the position
-      position += offsetVector;
+      position += position.normalized().scaled(extent.length);
     }
 
     Vector3 forward =
