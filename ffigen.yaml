@@ -6,3 +6,7 @@ headers:
     - 'native/include/CesiumTilesetCApi.h'
 ffi-native:
   assetId: package:cesium_3d_tiles/cesium_native/cesium_native.dart
+functions:
+  leaf:
+    include:
+      - 'CesiumGltfModel_applyRtcCenter'
