@@ -237,7 +237,7 @@ API_EXPORT double4x4 CesiumTile_getTransform(CesiumTile* tile);
 // Get a handle to the CesiumGltf::Model object for a given tile
 API_EXPORT CesiumGltfModel* CesiumTile_getModel(CesiumTile* tile);
 
-API_EXPORT double4x4 CesiumGltfModel_getTransform(CesiumGltfModel* model);
+API_EXPORT double4x4 CesiumGltfModel_applyRtcCenter(CesiumGltfModel* model, double4x4 transform);
 
 // Check if a tile has a valid model
 API_EXPORT int CesiumTile_hasModel(CesiumTile* tile);

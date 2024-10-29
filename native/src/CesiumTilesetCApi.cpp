@@ -665,27 +665,47 @@ CesiumGltfModel* CesiumTile_getModel(CesiumTile* tile) {
     return nullptr;
 }
 
-double4x4 CesiumGltfModel_getTransform(CesiumGltfModel* model) {
+double4x4 CesiumGltfModel_applyRtcCenter(CesiumGltfModel* model, double4x4 transform) {
+    
     auto cesiumModel = reinterpret_cast<CesiumGltf::Model*>(model);
-    glm::dmat4x4 rootTransform = glm::dmat4x4(1.0);
-    auto transform = CesiumGltfContent::GltfUtilities::applyRtcCenter(*cesiumModel, rootTransform);
+    glm::dmat4x4 glmTransform {
+        transform.col1[0],
+        transform.col1[1],
+        transform.col1[2],
+        transform.col1[3],
+        transform.col2[0],
+        transform.col2[1],
+        transform.col2[2],
+        transform.col2[3],
+        transform.col3[0],
+        transform.col3[1],
+        transform.col3[2],
+        transform.col3[3],
+        transform.col4[0],
+        transform.col4[1],
+        transform.col4[2],
+        transform.col4[3],
+    };
+     
+    auto rtcTransformed = CesiumGltfContent::GltfUtilities::applyRtcCenter(*cesiumModel, glmTransform);
+    
     return double4x4 {
-        transform[0][0],
-        transform[0][1],
-        transform[0][2],
-        transform[0][3],
-        transform[1][0],
-        transform[1][1],
-        transform[1][2],
-        transform[1][3],
-        transform[2][0],
-        transform[2][1],
-        transform[2][2],
-        transform[2][3],
-        transform[3][0],
-        transform[3][1],
-        transform[3][2],
-        transform[3][3],
+        rtcTransformed[0][0],
+        rtcTransformed[0][1],
+        rtcTransformed[0][2],
+        rtcTransformed[0][3],
+        rtcTransformed[1][0],
+        rtcTransformed[1][1],
+        rtcTransformed[1][2],
+        rtcTransformed[1][3],
+        rtcTransformed[2][0],
+        rtcTransformed[2][1],
+        rtcTransformed[2][2],
+        rtcTransformed[2][3],
+        rtcTransformed[3][0],
+        rtcTransformed[3][1],
+        rtcTransformed[3][2],
+        rtcTransformed[3][3],
     };
 }
 
