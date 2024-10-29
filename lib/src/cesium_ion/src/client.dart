@@ -46,7 +46,6 @@ class CesiumIonClient {
 
     if (response.statusCode == 200) {
       final jsonResponse = jsonDecode(response.body);
-      print(jsonResponse);
       return CesiumIonAssetEndpoint.fromJson(jsonResponse);
     } else {
       throw Exception('Failed to fetch asset: ${response.statusCode}');
