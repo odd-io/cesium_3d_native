@@ -1,39 +1,29 @@
 import 'package:vector_math/vector_math_64.dart';
+import 'dart:math';
 
-final gltfToEcef = Matrix4(
-      1,
-      0,
-      0,
-      0, // First column
-      0,
-      0,
-      1,
-      0, // Second column
-      0,
-      -1,
-      0,
-      0, // Third column
-      0,
-      0,
-      0,
-      1 // Fourth column (identity for no translation)
-      );
+final yUpToZUp = Matrix4(
+    1,
+    0,
+    0,
+    0, 
+    0,
+    0,
+    1,
+    0, 
+    0,
+    -1,
+    0,
+    0, 
+    0,
+    0,
+    0,
+    1 
+    );
 
-  final ecefToGltf = Matrix4(
-      1,
-      0,
-      0,
-      0, // First column
-      0,
-      0,
-      -1,
-      0, // Second column
-      0,
-      1,
-      0,
-      0, // Third column
-      0,
-      0,
-      0,
-      1 // Fourth column (identity for no translation)
-      );
+final zUpToYUp = yUpToZUp.clone()..transpose();
+
+final gltfToEcef = ecefToGltf.clone()..transpose();
+final ecefToGltf =
+    Matrix4.rotationZ(-pi / 2) * Matrix4.rotationY(-pi / 2);
+
+final yUpToglTf = Matrix4.rotationZ(pi / 2) * ecefToGltf;
