@@ -164,7 +164,7 @@ API_EXPORT void CesiumTileset_initialize(uint32_t numThreads) {
 
 }
 
-CesiumTileset* CesiumTileset_create(const char* url, void(*onRootTileAvailableEvent)()) {
+CesiumTileset* CesiumTileset_create(const char* url, CesiumTilesetOptions cesiumTilesetOptions, void(*onRootTileAvailableEvent)()) {
 
     Cesium3DTilesSelection::TilesetExternals externals {
       pAssetAccessor,
@@ -177,13 +177,21 @@ CesiumTileset* CesiumTileset_create(const char* url, void(*onRootTileAvailableEv
     
     // TODO - pass these in as arguments
     TilesetOptions options;
-    options.forbidHoles = true;
-    options.lodTransitionLength = 0.0f;
-    options.enableOcclusionCulling = true;
-    options.enableFogCulling = true;
-    options.enableFrustumCulling = true;
-    options.maximumSimultaneousTileLoads = 10;
-    options.maximumSimultaneousSubtreeLoads = 10;
+        options.enableLodTransitionPeriod = cesiumTilesetOptions.enableLodTransitionPeriod;
+    
+    options.forbidHoles = cesiumTilesetOptions.forbidHoles;
+    options.lodTransitionLength = cesiumTilesetOptions.loadingDescendantLimit;
+    options.enableOcclusionCulling = cesiumTilesetOptions.enableOcclusionCulling;
+    options.enableFogCulling = cesiumTilesetOptions.enableFogCulling;
+    options.enableFrustumCulling = cesiumTilesetOptions.enableFrustumCulling;
+    
+    options.enforceCulledScreenSpaceError = cesiumTilesetOptions.enforceCulledScreenSpaceError;
+    options.culledScreenSpaceError = cesiumTilesetOptions.culledScreenSpaceError;
+    options.maximumScreenSpaceError =cesiumTilesetOptions.maximumScreenSpaceError;
+
+    options.maximumSimultaneousTileLoads = cesiumTilesetOptions.maximumSimultaneousTileLoads;
+    options.maximumSimultaneousSubtreeLoads = cesiumTilesetOptions.maximumSimultaneousSubtreeLoads;
+    options.loadingDescendantLimit = cesiumTilesetOptions.loadingDescendantLimit;
 
     auto pTileset = new CesiumTileset();
     options.loadErrorCallback = [=](const TilesetLoadFailureDetails& details) {
@@ -205,7 +213,7 @@ CesiumTileset* CesiumTileset_create(const char* url, void(*onRootTileAvailableEv
     return pTileset;
 }
 
-CesiumTileset* CesiumTileset_createFromIonAsset(int64_t assetId, const char* accessToken, void(*onRootTileAvailableEvent)()) {
+CesiumTileset* CesiumTileset_createFromIonAsset(int64_t assetId,  const char* accessToken, CesiumTilesetOptions cesiumTilesetOptions, void(*onRootTileAvailableEvent)()) {
 
     Cesium3DTilesSelection::TilesetExternals externals {
       pAssetAccessor,
@@ -217,14 +225,22 @@ CesiumTileset* CesiumTileset_createFromIonAsset(int64_t assetId, const char* acc
     TilesetOptions options;
     
     // options.delayRefinementForOcclusion = true;
-    options.loadingDescendantLimit = 10;
-    options.forbidHoles = true;
-    options.lodTransitionLength = 0.1f;
-    options.enableOcclusionCulling = true;
-    options.enableFogCulling = true;
-    options.enableFrustumCulling = false;
-    options.maximumSimultaneousTileLoads = 5;
-    options.maximumSimultaneousSubtreeLoads = 5;
+    options.enableLodTransitionPeriod = cesiumTilesetOptions.enableLodTransitionPeriod;
+    
+    options.forbidHoles = cesiumTilesetOptions.forbidHoles;
+    options.lodTransitionLength = cesiumTilesetOptions.loadingDescendantLimit;
+    options.enableOcclusionCulling = cesiumTilesetOptions.enableOcclusionCulling;
+    options.enableFogCulling = cesiumTilesetOptions.enableFogCulling;
+    options.enableFrustumCulling = cesiumTilesetOptions.enableFrustumCulling;
+    
+    options.enforceCulledScreenSpaceError = cesiumTilesetOptions.enforceCulledScreenSpaceError;
+    options.culledScreenSpaceError = cesiumTilesetOptions.culledScreenSpaceError;
+    options.maximumScreenSpaceError =cesiumTilesetOptions.maximumScreenSpaceError;
+
+    options.maximumSimultaneousTileLoads = cesiumTilesetOptions.maximumSimultaneousTileLoads;
+    options.maximumSimultaneousSubtreeLoads = cesiumTilesetOptions.maximumSimultaneousSubtreeLoads;
+    options.loadingDescendantLimit = cesiumTilesetOptions.loadingDescendantLimit;
+    
     
     auto pTileset = new CesiumTileset();
     options.loadErrorCallback = [=](const TilesetLoadFailureDetails& details) {
@@ -304,21 +320,7 @@ void CesiumTileset_updateViewAsync(CesiumTileset* tileset, const CesiumViewState
     asyncSystem.dispatchMainThreadTasks();
 }
 
-float CesiumTileset_computeLoadProgress(CesiumTileset* tileset) {
-    spdlog::default_logger()->info("queue len {}", tileset->lastUpdateResult.workerThreadTileLoadQueueLength);
-    spdlog::default_logger()->info("tilesToRenderThisFrame {}", tileset->lastUpdateResult.tilesToRenderThisFrame.size());
-    spdlog::default_logger()->info("tilesFadingOut {}", tileset->lastUpdateResult.tilesFadingOut.size());
-    spdlog::default_logger()->info("workerThreadTileLoadQueueLength {}", tileset->lastUpdateResult.workerThreadTileLoadQueueLength);
-    
-    spdlog::default_logger()->info("mainThreadTileLoadQueueLength {}", tileset->lastUpdateResult.mainThreadTileLoadQueueLength);
-    spdlog::default_logger()->info("tilesVisited {}", tileset->lastUpdateResult.tilesVisited);
-    spdlog::default_logger()->info("culledTilesVisited {}", tileset->lastUpdateResult.culledTilesVisited);
-    spdlog::default_logger()->info("tilesCulled {}", tileset->lastUpdateResult.tilesCulled);
-    spdlog::default_logger()->info("tilesOccluded {}", tileset->lastUpdateResult.tilesOccluded);
-    spdlog::default_logger()->info("tilesKicked {}", tileset->lastUpdateResult.tilesKicked);
-    spdlog::default_logger()->info("tilesWaitingForOcclusionResults {}", tileset->lastUpdateResult.tilesWaitingForOcclusionResults);
-    spdlog::default_logger()->info("maxDepthVisited {}", tileset->lastUpdateResult.maxDepthVisited);
-    
+float CesiumTileset_computeLoadProgress(CesiumTileset* tileset) {   
     return tileset->tileset->computeLoadProgress();
 }
 
@@ -478,6 +480,7 @@ double4x4 CesiumTile_getTransform(CesiumTile* cesiumTile) {
     Cesium3DTilesSelection::Tile* tile = reinterpret_cast<Cesium3DTilesSelection::Tile*>(cesiumTile);
 
     auto transform = tile->getTransform();
+    
     return double4x4 {
         transform[0][0],
         transform[0][1],

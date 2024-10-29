@@ -16,19 +16,26 @@ external void CesiumTileset_initialize(
 external void CesiumTileset_pumpAsyncQueue();
 
 @ffi.Native<
-    ffi.Pointer<CesiumTileset> Function(ffi.Pointer<ffi.Char>,
+    ffi.Pointer<CesiumTileset> Function(
+        ffi.Pointer<ffi.Char>,
+        CesiumTilesetOptions,
         ffi.Pointer<ffi.NativeFunction<ffi.Void Function()>>)>()
 external ffi.Pointer<CesiumTileset> CesiumTileset_create(
   ffi.Pointer<ffi.Char> url,
+  CesiumTilesetOptions cesiumTilesetOptions,
   ffi.Pointer<ffi.NativeFunction<ffi.Void Function()>> onRootTileAvailableEvent,
 );
 
 @ffi.Native<
-    ffi.Pointer<CesiumTileset> Function(ffi.Int64, ffi.Pointer<ffi.Char>,
+    ffi.Pointer<CesiumTileset> Function(
+        ffi.Int64,
+        ffi.Pointer<ffi.Char>,
+        CesiumTilesetOptions,
         ffi.Pointer<ffi.NativeFunction<ffi.Void Function()>>)>()
 external ffi.Pointer<CesiumTileset> CesiumTileset_createFromIonAsset(
   int assetId,
   ffi.Pointer<ffi.Char> accessToken,
+  CesiumTilesetOptions cesiumTilesetOptions,
   ffi.Pointer<ffi.NativeFunction<ffi.Void Function()>> onRootTileAvailableEvent,
 );
 
@@ -150,10 +157,10 @@ external ffi.Pointer<CesiumTile> CesiumTileset_getRootTile(
   ffi.Pointer<CesiumTileset> tileset,
 );
 
-@ffi.Native<CesiumBoundingVolume Function(ffi.Pointer<CesiumTile>, bool)>()
+@ffi.Native<CesiumBoundingVolume Function(ffi.Pointer<CesiumTile>, ffi.Bool)>()
 external CesiumBoundingVolume CesiumTile_getBoundingVolume(
   ffi.Pointer<CesiumTile> tile,
-  int convertToOrientedBox,
+  bool convertToOrientedBox,
 );
 
 @ffi.Native<ffi.Double Function(ffi.Pointer<CesiumTile>, CesiumViewState)>()
@@ -235,6 +242,44 @@ final class CesiumTileset extends ffi.Opaque {}
 final class CesiumTile extends ffi.Opaque {}
 
 final class CesiumGltfModel extends ffi.Opaque {}
+
+final class CesiumTilesetOptions extends ffi.Struct {
+  @ffi.Bool()
+  external bool forbidHoles;
+
+  @ffi.Bool()
+  external bool enableLodTransitionPeriod;
+
+  @ffi.Float()
+  external double lodTransitionLength;
+
+  @ffi.Bool()
+  external bool enableOcclusionCulling;
+
+  @ffi.Bool()
+  external bool enableFogCulling;
+
+  @ffi.Bool()
+  external bool enableFrustumCulling;
+
+  @ffi.Bool()
+  external bool enforceCulledScreenSpaceError;
+
+  @ffi.Double()
+  external double culledScreenSpaceError;
+
+  @ffi.Double()
+  external double maximumScreenSpaceError;
+
+  @ffi.Uint32()
+  external int maximumSimultaneousTileLoads;
+
+  @ffi.Uint32()
+  external int maximumSimultaneousSubtreeLoads;
+
+  @ffi.Uint32()
+  external int loadingDescendantLimit;
+}
 
 final class CesiumTilesetRenderableTiles extends ffi.Struct {
   @ffi.Array.multi([4096])
@@ -393,6 +438,3 @@ final class SerializedCesiumGltfModel extends ffi.Struct {
   @ffi.Size()
   external int length;
 }
-
-typedef bool = ffi.Int;
-typedef Dartbool = int;

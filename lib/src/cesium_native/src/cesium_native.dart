@@ -3,6 +3,7 @@ import 'dart:ffi';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:cesium_3d_tiles/src/cesium_3d_tiles/src/tileset_options.dart';
 import 'package:cesium_3d_tiles/src/cesium_native/src/cartographic_position.dart';
 import 'package:cesium_3d_tiles/src/cesium_native/src/cesium_native.g.dart'
     as g;
@@ -73,7 +74,7 @@ class CesiumNative {
   /// Load a CesiumTileset from a CesiumIonAsset with the specified token.
   ///
   Future<CesiumTileset> loadFromCesiumIon(
-      int assetId, String accessToken) async {
+      int assetId, String accessToken, TilesetOptions options) async {
     final ptr = accessToken.toNativeUtf8(allocator: calloc);
     final completer = Completer<void>();
     late NativeCallable<Void Function()> rootTileAvailable;
@@ -82,8 +83,25 @@ class CesiumNative {
       rootTileAvailable.close();
     });
 
-    final tilesetPtr = g.CesiumTileset_createFromIonAsset(
-        assetId, ptr.cast<Char>(), rootTileAvailable.nativeFunction);
+    final optionsStruct = Struct.create<g.CesiumTilesetOptions>();
+    optionsStruct.forbidHoles = options.forbidHoles;
+    optionsStruct.enableLodTransitionPeriod = options.enableLodTransitionPeriod;
+    optionsStruct.lodTransitionLength = options.lodTransitionLength;
+    optionsStruct.enableOcclusionCulling = options.enableOcclusionCulling;
+    optionsStruct.enableFogCulling = options.enableFogCulling;
+    optionsStruct.enableFrustumCulling = options.enableFrustumCulling;
+    optionsStruct.enforceCulledScreenSpaceError =
+        options.enforceCulledScreenSpaceError;
+    optionsStruct.culledScreenSpaceError = options.culledScreenSpaceError;
+    optionsStruct.maximumScreenSpaceError = options.maximumScreenSpaceError;
+    optionsStruct.maximumSimultaneousTileLoads =
+        options.maximumSimultaneousTileLoads;
+    optionsStruct.maximumSimultaneousSubtreeLoads =
+        options.maximumSimultaneousSubtreeLoads;
+    optionsStruct.loadingDescendantLimit = options.loadingDescendantLimit;
+
+    final tilesetPtr = g.CesiumTileset_createFromIonAsset(assetId,
+        ptr.cast<Char>(), optionsStruct, rootTileAvailable.nativeFunction);
     calloc.free(ptr);
 
     int iters = 0;
@@ -113,7 +131,7 @@ class CesiumNative {
   ///
   /// Load a CesiumTileset from a url.
   ///
-  Future<CesiumTileset> loadFromUrl(String url) async {
+  Future<CesiumTileset> loadFromUrl(String url, TilesetOptions options) async {
     final ptr = url.toNativeUtf8(allocator: calloc);
     final completer = Completer<void>();
     late NativeCallable<Void Function()> rootTileAvailable;
@@ -121,8 +139,26 @@ class CesiumNative {
       completer.complete();
       rootTileAvailable.close();
     });
+
+    final optionsStruct = Struct.create<g.CesiumTilesetOptions>();
+    optionsStruct.forbidHoles = options.forbidHoles;
+    optionsStruct.enableLodTransitionPeriod = options.enableLodTransitionPeriod;
+    optionsStruct.lodTransitionLength = options.lodTransitionLength;
+    optionsStruct.enableOcclusionCulling = options.enableOcclusionCulling;
+    optionsStruct.enableFogCulling = options.enableFogCulling;
+    optionsStruct.enableFrustumCulling = options.enableFrustumCulling;
+    optionsStruct.enforceCulledScreenSpaceError =
+        options.enforceCulledScreenSpaceError;
+    optionsStruct.culledScreenSpaceError = options.culledScreenSpaceError;
+    optionsStruct.maximumScreenSpaceError = options.maximumScreenSpaceError;
+    optionsStruct.maximumSimultaneousTileLoads =
+        options.maximumSimultaneousTileLoads;
+    optionsStruct.maximumSimultaneousSubtreeLoads =
+        options.maximumSimultaneousSubtreeLoads;
+    optionsStruct.loadingDescendantLimit = options.loadingDescendantLimit;
+
     final tilesetPtr = g.CesiumTileset_create(
-        ptr.cast<Char>(), rootTileAvailable.nativeFunction);
+        ptr.cast<Char>(), optionsStruct, rootTileAvailable.nativeFunction);
     calloc.free(ptr);
     while (!completer.isCompleted) {
       await Future.delayed(Duration(milliseconds: 10));
@@ -189,7 +225,8 @@ class CesiumNative {
     var elapsed =
         DateTime.now().millisecondsSinceEpoch - start.millisecondsSinceEpoch;
     if (elapsed > 50) {
-      _logger.warning("CesiumTileset_updateViewAsync completed in ${elapsed}ms");
+      _logger
+          .warning("CesiumTileset_updateViewAsync completed in ${elapsed}ms");
     }
     int waited = 0;
     await Future.delayed(Duration.zero);
@@ -330,8 +367,8 @@ class CesiumNative {
   ///
   CesiumBoundingVolume getBoundingVolume(CesiumTile tile,
       {bool convertRegionToOrientedBox = false}) {
-    final volume = g.CesiumTile_getBoundingVolume(
-        tile, convertRegionToOrientedBox ? 1 : 0);
+    final volume =
+        g.CesiumTile_getBoundingVolume(tile, convertRegionToOrientedBox);
 
     switch (volume.type) {
       case g.CesiumBoundingVolumeType.CT_BV_ORIENTED_BOX:

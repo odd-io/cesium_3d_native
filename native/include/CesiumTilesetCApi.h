@@ -7,6 +7,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 
 #ifdef _WIN32
 #include "CesiumTilesetWin32.h"
@@ -17,8 +18,6 @@
 #ifdef __cplusplus
 extern "C" {
 namespace DartCesiumNative {
-#else
-typedef int bool;    
 #endif
 
 // Here we define structs that act as opaque pointers to various Cesium native C++ classes.
@@ -30,6 +29,23 @@ typedef int bool;
 typedef struct CesiumTileset CesiumTileset; //  Cesium3DTilesSelection::Tileset
 typedef struct CesiumTile CesiumTile; //  Cesium3DTilesSelection::Tile
 typedef struct CesiumGltfModel CesiumGltfModel; //  CesiumGltf::Model
+
+// Options to use when loading tilesets. A subset of TilesetOptions.
+struct CesiumTilesetOptions {
+    bool forbidHoles;
+    bool enableLodTransitionPeriod;
+    float lodTransitionLength;
+    bool enableOcclusionCulling;
+    bool enableFogCulling;
+    bool enableFrustumCulling;
+    bool enforceCulledScreenSpaceError;
+    double culledScreenSpaceError;
+    double maximumScreenSpaceError;
+    uint32_t maximumSimultaneousTileLoads;
+    uint32_t maximumSimultaneousSubtreeLoads;
+    uint32_t loadingDescendantLimit;
+};
+typedef struct CesiumTilesetOptions CesiumTilesetOptions;
 
 // Holds pointers to all current tiles with render content.
 struct CesiumTilesetRenderableTiles {
@@ -153,10 +169,10 @@ API_EXPORT void CesiumTileset_initialize(uint32_t numThreads);
 API_EXPORT void CesiumTileset_pumpAsyncQueue();
 
 // Create a Tileset from a URL
-API_EXPORT CesiumTileset* CesiumTileset_create(const char* url, void(*onRootTileAvailableEvent)());
+API_EXPORT CesiumTileset* CesiumTileset_create(const char* url, CesiumTilesetOptions cesiumTilesetOptions, void(*onRootTileAvailableEvent)());
 
 // Create a Tileset from a Cesium ion asset. 
-API_EXPORT CesiumTileset* CesiumTileset_createFromIonAsset(int64_t assetId, const char* accessToken, void(*onRootTileAvailableEvent)());
+API_EXPORT CesiumTileset* CesiumTileset_createFromIonAsset(int64_t assetId, const char* accessToken, CesiumTilesetOptions cesiumTilesetOptions, void(*onRootTileAvailableEvent)());
 
 API_EXPORT float CesiumTileset_computeLoadProgress(CesiumTileset* tileset);
 

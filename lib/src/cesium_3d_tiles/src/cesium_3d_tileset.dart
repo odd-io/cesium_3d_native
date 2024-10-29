@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ffi';
 import 'dart:math';
 import 'dart:typed_data';
+import 'package:cesium_3d_tiles/src/cesium_3d_tiles/src/tileset_options.dart';
 import 'package:cesium_3d_tiles/src/cesium_native/cesium_native.dart';
 import 'package:logging/logging.dart';
 import 'cesium_3d_tile.dart';
@@ -34,8 +35,8 @@ enum RenderLayer {
 /// A high-level interface for a Cesium 3D Tiles tileset.
 ///
 class Cesium3DTileset {
-
   final _logger = Logger("Cesium3DTileset");
+
   ///
   /// A name used for debugging.
   ///
@@ -73,8 +74,9 @@ class Cesium3DTileset {
   }
 
   static Future<Cesium3DTileset> fromUrl(String url,
-      {RenderLayer renderLayer = RenderLayer.layer0}) async {
-    var tileset = await CesiumNative.instance.loadFromUrl(url);
+      {TilesetOptions tilesetOptions = const TilesetOptions(),
+      RenderLayer renderLayer = RenderLayer.layer0}) async {
+    var tileset = await CesiumNative.instance.loadFromUrl(url, tilesetOptions);
     return Cesium3DTileset._(tileset, renderLayer);
   }
 
@@ -82,9 +84,10 @@ class Cesium3DTileset {
   ///
   ///
   static Future<Cesium3DTileset> fromCesiumIon(int assetId, String accessToken,
-      {RenderLayer renderLayer = RenderLayer.layer0}) async {
-    var tileset =
-        await CesiumNative.instance.loadFromCesiumIon(assetId, accessToken);
+      {TilesetOptions tilesetOptions = const TilesetOptions(),
+      RenderLayer renderLayer = RenderLayer.layer0}) async {
+    var tileset = await CesiumNative.instance
+        .loadFromCesiumIon(assetId, accessToken, tilesetOptions);
     return Cesium3DTileset._(tileset, renderLayer, debugName: "ion:$assetId");
   }
 
@@ -130,13 +133,13 @@ class Cesium3DTileset {
   }
 
   ///
-  /// Returns the position (in glTF/Cartesian coordinates) of the given
+  /// Returns the position (in Cartesian glTF coordinates) of the given
   /// cartographic position.
-  /// 
-  static Vector3 cartographicToCartesian(double latitude, double longitude,
+  ///
+  static Vector3 cartographicToCartesian(double latitudeInRadians, double longitudeInRadians,
       {double height = 0}) {
     final cartesian = CesiumNative.instance.getCartesianPositionForCartographic(
-        latitude, longitude,
+        latitudeInRadians, longitudeInRadians,
         height: height);
     return ecefToGltf * cartesian;
   }
@@ -146,7 +149,7 @@ class Cesium3DTileset {
   ///
   Matrix4 getTransform(CesiumTile tile) {
     var transform = CesiumNative.instance.getTransform(tile);
-    return ecefToGltf * transform * gltfToEcef;
+    return yUpToglTf * transform;
   }
 
   ///
@@ -155,16 +158,15 @@ class Cesium3DTileset {
   Vector3? getTileCenter(CesiumTile tile) {
     var volume = CesiumNative.instance
         .getBoundingVolume(tile, convertRegionToOrientedBox: true);
-    var transform = ecefToGltf;
     if (volume is CesiumBoundingVolumeOrientedBox) {
-      return (transform *
+      return (ecefToGltf *
               Vector4(volume.center.x, volume.center.y, volume.center.z, 1.0))
           .xyz;
     } else if (volume is CesiumBoundingVolumeRegion) {
       // should never happen
       throw UnimplementedError();
     } else if (volume is CesiumBoundingVolumeSphere) {
-      return (transform *
+      return (ecefToGltf *
               Vector4(volume.center.x, volume.center.y, volume.center.z, 1.0))
           .xyz;
     } else {
@@ -183,23 +185,27 @@ class Cesium3DTileset {
   ///
   ///
   Future<List<Cesium3DTile>> updateCameraAndViewport(
-      Matrix4 cameraModelMatrix,
+      Vector3 cameraPosition,
+      Vector3 upVector,
+      Vector3 forwardVector,
       double horizontalFovInRadians,
       double verticalFovInRadians,
       double viewportWidth,
       double viewportHeight) async {
     var start = DateTime.now();
 
-    var position = cameraModelMatrix.getTranslation();
-    var up = cameraModelMatrix.up;
-    var forward = cameraModelMatrix.forward;
+    cameraPosition = gltfToEcef * cameraPosition;
+    upVector = gltfToEcef * upVector;
+    forwardVector = gltfToEcef * forwardVector;
 
-    position = gltfToEcef * position;
-    up = gltfToEcef * up;
-    forward = gltfToEcef * forward;
-
-    _view = CesiumView(position, forward, up, viewportWidth, viewportHeight,
-        horizontalFovInRadians, verticalFovInRadians);
+    _view = CesiumView(
+        cameraPosition,
+        forwardVector.normalized(),
+        upVector.normalized(),
+        viewportWidth,
+        viewportHeight,
+        horizontalFovInRadians,
+        verticalFovInRadians);
     start = DateTime.now();
 
     var renderableTileCount =
@@ -225,7 +231,7 @@ class Cesium3DTileset {
   Future<Uint8List?> loadGltf(CesiumTile tile) async {
     if (!_models.containsKey(tile)) {
       var model = CesiumNative.instance.getModel(tile);
-      if (model == null) {        
+      if (model == null) {
         _logger.severe("Failed to load");
         return null;
       }
