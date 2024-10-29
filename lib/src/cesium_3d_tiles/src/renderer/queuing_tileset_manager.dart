@@ -1,5 +1,7 @@
+import 'dart:math';
 import 'dart:async';
 import 'dart:io';
+import 'package:cesium_3d_tiles/src/cesium_3d_tiles/src/transforms.dart';
 import 'package:cesium_3d_tiles/src/cesium_3d_tiles/src/cesium_3d_tileset.dart';
 import 'package:cesium_3d_tiles/src/cesium_3d_tiles/src/renderer/markers.dart';
 import 'package:cesium_3d_tiles/src/cesium_3d_tiles/src/renderer/tileset_manager.dart';
@@ -134,10 +136,13 @@ class QueueingTilesetManager<T> extends TilesetManager {
     if (data == null) {
       return;
     }
-
     var transform = tile.getTransform();
+    
+    var afterRtc =
+          ecefToGltf * await tile.applyRtcCenter(transform) *
+         yUpToZUp;
 
-    var entity = await renderer.loadGlb(data, transform, tile.tileset);
+    var entity = await renderer.loadGlb(data, afterRtc, tile.tileset);
     _entities[tile] = entity;
 
     _loaded.add(tile);
