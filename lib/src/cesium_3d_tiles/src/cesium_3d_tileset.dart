@@ -136,7 +136,8 @@ class Cesium3DTileset {
   /// Returns the position (in Cartesian glTF coordinates) of the given
   /// cartographic position.
   ///
-  static Vector3 cartographicToCartesian(double latitudeInRadians, double longitudeInRadians,
+  static Vector3 cartographicToCartesian(
+      double latitudeInRadians, double longitudeInRadians,
       {double height = 0}) {
     final cartesian = CesiumNative.instance.getCartesianPositionForCartographic(
         latitudeInRadians, longitudeInRadians,
@@ -149,7 +150,7 @@ class Cesium3DTileset {
   ///
   Matrix4 getTransform(CesiumTile tile) {
     var transform = CesiumNative.instance.getTransform(tile);
-    return yUpToglTf * transform;
+    return ecefToGltf * transform * yUpToZUp; // I have no idea why this works. Will look at it with fresh eyes at some point.
   }
 
   ///
