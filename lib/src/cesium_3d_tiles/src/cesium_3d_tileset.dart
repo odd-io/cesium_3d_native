@@ -150,7 +150,7 @@ class Cesium3DTileset {
   ///
   Matrix4 getTransform(CesiumTile tile) {
     var transform = CesiumNative.instance.getTransform(tile);
-    return ecefToGltf * transform * yUpToZUp; // I have no idea why this works. Will look at it with fresh eyes at some point.
+    return transform;
   }
 
   ///
@@ -229,6 +229,11 @@ class Cesium3DTileset {
 
   final _models = <CesiumTile, SerializedCesiumGltfModel>{};
 
+  Future<Matrix4> applyRtcCenter(CesiumTile tile, Matrix4 transform) async {
+    var model = CesiumNative.instance.getModel(tile);
+    return CesiumNative.instance.applyRtcCenter(model!, transform);
+  }
+
   Future<Uint8List?> loadGltf(CesiumTile tile) async {
     if (!_models.containsKey(tile)) {
       var model = CesiumNative.instance.getModel(tile);
@@ -237,6 +242,7 @@ class Cesium3DTileset {
         return null;
       }
       var serialized = await CesiumNative.instance.serializeGltfData(model);
+
       _models[tile] = serialized;
     }
     return _models[tile]!.data;
