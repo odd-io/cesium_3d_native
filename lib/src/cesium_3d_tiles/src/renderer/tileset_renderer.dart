@@ -195,15 +195,6 @@ abstract class TilesetRenderer<T> {
   ///
   ///
   ///
-  Matrix4 _createLookAtMatrix(Vector3 eyePosition) {
-    final target = Vector3.zero();
-    final up = Vector3(0, 1, 0); // Assuming Y is up
-    return makeViewMatrix(eyePosition, target, up);
-  }
-
-  ///
-  ///
-  ///
   double _easeInOutCubic(double t) {
     return t < 0.5 ? 4 * t * t * t : 1 - pow(-2 * t + 2, 3) / 2;
   }
