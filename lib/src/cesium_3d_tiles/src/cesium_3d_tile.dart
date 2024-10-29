@@ -16,7 +16,11 @@ class Cesium3DTile {
     return tileset.loadGltf(_tile);
   }
 
-  Future freeGltf() async { 
+  Future<Matrix4> applyRtcCenter(Matrix4 transform) {
+    return tileset.applyRtcCenter(_tile, transform);
+  }
+
+  Future freeGltf() async {
     tileset.freeGltf(_tile);
   }
 
