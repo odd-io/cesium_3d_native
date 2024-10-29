@@ -428,8 +428,26 @@ class CesiumNative {
     return model;
   }
 
-  Matrix4 getGltfTransform(CesiumGltfModel model) {
-    var result = g.CesiumGltfModel_getTransform(model);
+  Matrix4 applyRtcCenter(CesiumGltfModel model, Matrix4 transform) {
+    var d4x4 = Struct.create<g.double4x4>();
+    d4x4.col1[0] = transform.storage[0];
+    d4x4.col1[1] = transform.storage[1];
+    d4x4.col1[2] = transform.storage[2];
+    d4x4.col1[3] = transform.storage[3];
+    d4x4.col2[0] = transform.storage[4];
+    d4x4.col2[1] = transform.storage[5];
+    d4x4.col2[2] = transform.storage[6];
+    d4x4.col2[3] = transform.storage[7];
+    d4x4.col3[0] = transform.storage[8];
+    d4x4.col3[1] = transform.storage[9];
+    d4x4.col3[2] = transform.storage[10];
+    d4x4.col3[3] = transform.storage[11];
+    d4x4.col4[0] = transform.storage[12];
+    d4x4.col4[1] = transform.storage[13];
+    d4x4.col4[2] = transform.storage[14];
+    d4x4.col4[3] = transform.storage[15];
+
+    var result = g.CesiumGltfModel_applyRtcCenter(model, d4x4);
     return Matrix4(
       result.col1[0],
       result.col1[1],

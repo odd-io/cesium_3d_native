@@ -184,9 +184,11 @@ external ffi.Pointer<CesiumGltfModel> CesiumTile_getModel(
   ffi.Pointer<CesiumTile> tile,
 );
 
-@ffi.Native<double4x4 Function(ffi.Pointer<CesiumGltfModel>)>()
-external double4x4 CesiumGltfModel_getTransform(
+@ffi.Native<double4x4 Function(ffi.Pointer<CesiumGltfModel>, double4x4)>(
+    isLeaf: true)
+external double4x4 CesiumGltfModel_applyRtcCenter(
   ffi.Pointer<CesiumGltfModel> model,
+  double4x4 transform,
 );
 
 @ffi.Native<ffi.Int Function(ffi.Pointer<CesiumTile>)>()
