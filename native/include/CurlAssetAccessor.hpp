@@ -95,9 +95,9 @@ public:
                 throw std::runtime_error("Failed to initialize CURL");
             }
             
-            curl_easy_setopt(curl, CURLOPT_FRESH_CONNECT, 1L);
+            curl_easy_setopt(curl, CURLOPT_FRESH_CONNECT, 0L);
             // curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
-            curl_easy_setopt(curl, CURLOPT_SSL_SESSIONID_CACHE, 0L);
+            curl_easy_setopt(curl, CURLOPT_SSL_SESSIONID_CACHE, 1L);
             curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
             curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
             #ifdef __ANDROID_API__
