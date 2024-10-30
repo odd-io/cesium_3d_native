@@ -9,6 +9,7 @@
 #include <iostream>
 #include <sstream>
 #include <zlib.h>
+#include <chrono>
 
 using namespace Cesium3DTilesSelection;
 
@@ -84,6 +85,9 @@ public:
         const gsl::span<const std::byte>& contentPayload = {}) override {
        
         return asyncSystem.runInWorkerThread([this, verb, url, headers, contentPayload]() {
+            auto startTime = std::chrono::high_resolution_clock::now();
+            spdlog::info("Starting {} request to: {}", verb, url);
+
             auto request = std::make_shared<CurlAssetRequest>(verb, url, CesiumAsync::HttpHeaders(headers.begin(), headers.end()));
             
             CURL* curl = curl_easy_init();
@@ -111,13 +115,7 @@ public:
                 chunk = curl_slist_append(chunk, headerStr.c_str());
             }
 
-            // Add Accept-Encoding header for compressed responses
             chunk = curl_slist_append(chunk, "Accept-Encoding: gzip, deflate");
-
-            // if (!_authToken.empty()) {
-            //     std::string authHeader = "Authorization: Bearer " + _authToken;
-            //     chunk = curl_slist_append(chunk, authHeader.c_str());
-            // }
 
             curl_easy_setopt(curl, CURLOPT_HTTPHEADER, chunk);
 
@@ -132,10 +130,24 @@ public:
             curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
             curl_easy_setopt(curl, CURLOPT_WRITEDATA, &responseData);
             
+            // Get timing information
+            double totalTime, nameLookupTime, connectTime, appConnectTime, preTransferTime, startTransferTime;
+            
             CURLcode res = curl_easy_perform(curl);
 
+            auto endTime = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
+
+            // Get detailed timing information from CURL
+            curl_easy_getinfo(curl, CURLINFO_TOTAL_TIME, &totalTime);
+            curl_easy_getinfo(curl, CURLINFO_NAMELOOKUP_TIME, &nameLookupTime);
+            curl_easy_getinfo(curl, CURLINFO_CONNECT_TIME, &connectTime);
+            curl_easy_getinfo(curl, CURLINFO_APPCONNECT_TIME, &appConnectTime);
+            curl_easy_getinfo(curl, CURLINFO_PRETRANSFER_TIME, &preTransferTime);
+            curl_easy_getinfo(curl, CURLINFO_STARTTRANSFER_TIME, &startTransferTime);
+
             if (res != CURLE_OK) {
-                spdlog::default_logger()->error("CURL Failed!  Error: {}", curl_easy_strerror(res));
+                spdlog::default_logger()->error("CURL Failed! Error: {}", curl_easy_strerror(res));
                 spdlog::default_logger()->error("Response body: {}", std::string(responseData.begin(), responseData.end()));
                 spdlog::default_logger()->error("{}", errbuf);
 
@@ -150,6 +162,18 @@ public:
             char* contentType;
             curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE, &contentType);
 
+            // Log timing information
+            spdlog::default_logger()->info("Request completed: {} {}", verb, url);
+            spdlog::default_logger()->info("Status: {}", statusCode);
+            spdlog::default_logger()->info("Total time: {:.2f} ms", duration.count());
+            spdlog::default_logger()->info("CURL Timing breakdown:");
+            spdlog::default_logger()->info("  DNS lookup:    {:.2f} ms", nameLookupTime * 1000);
+            spdlog::default_logger()->info("  TCP connect:   {:.2f} ms", (connectTime - nameLookupTime) * 1000);
+            spdlog::default_logger()->info("  SSL handshake: {:.2f} ms", (appConnectTime - connectTime) * 1000);
+            spdlog::default_logger()->info("  Pre-transfer:  {:.2f} ms", (preTransferTime - appConnectTime) * 1000);
+            spdlog::default_logger()->info("  Transfer:      {:.2f} ms", (totalTime - startTransferTime) * 1000);
+            spdlog::default_logger()->info("Response size: {} bytes", responseData.size());
+
             auto response = std::make_unique<CurlAssetResponse>(statusCode, contentType ? contentType : "", responseData);
             request->setResponse(std::move(response));
 
@@ -159,6 +183,7 @@ public:
             return (std::shared_ptr<CesiumAsync::IAssetRequest>)request;
         });
     }
+
 
     void tick() noexcept override {}
 
