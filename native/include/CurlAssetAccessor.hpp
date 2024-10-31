@@ -86,7 +86,7 @@ public:
        
         return asyncSystem.runInWorkerThread([this, verb, url, headers, contentPayload]() {
             auto startTime = std::chrono::high_resolution_clock::now();
-            spdlog::info("Starting {} request to: {}", verb, url);
+            // spdlog::info("Starting {} request to: {}", verb, url);
 
             auto request = std::make_shared<CurlAssetRequest>(verb, url, CesiumAsync::HttpHeaders(headers.begin(), headers.end()));
             
