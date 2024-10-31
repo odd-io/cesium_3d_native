@@ -28,9 +28,18 @@ import '../cesium_3d_tile.dart';
 /// using your own chosen rendering framework.
 ///
 class QueueingTilesetManager<T> extends TilesetManager {
+  final _loading = <Cesium3DTile>{};
   final _loaded = <Cesium3DTile>{};
   final _loadQueue = <Cesium3DTile>{};
   final _cullQueue = <Cesium3DTile>{};
+  final _renderable = <Cesium3DTileset, Set<Cesium3DTile>>{};
+
+  bool _updating = false;
+
+  ///
+  ///
+  ///
+  final Map<T, RenderableMarker> _markers = {};
 
   bool _handlingQueue = false;
   bool _cameraDirty = false;
@@ -38,7 +47,7 @@ class QueueingTilesetManager<T> extends TilesetManager {
   Timer? _timer;
   DateTime? _lastTileUpdate;
 
-  final _layers = <Cesium3DTileset, List<CesiumTile>>{};
+  final _layers = <Cesium3DTileset, Set<CesiumTile>>{};
   final _layersToRemove = <Cesium3DTileset>{};
   final _entities = <Cesium3DTile, T>{};
 
@@ -52,6 +61,9 @@ class QueueingTilesetManager<T> extends TilesetManager {
     _timer = Timer.periodic(const Duration(milliseconds: 8), _tick);
   }
 
+  ///
+  ///
+  ///
   Future _tick(_) async {
     // skip all updates if we haven't finished the last iteration
     if (_handlingQueue) {
@@ -101,6 +113,9 @@ class QueueingTilesetManager<T> extends TilesetManager {
     _handlingQueue = false;
   }
 
+  ///
+  ///
+  ///
   Future _remove(Cesium3DTile tile) async {
     if (_loaded.contains(tile)) {
       final entity = _entities[tile];
@@ -115,13 +130,17 @@ class QueueingTilesetManager<T> extends TilesetManager {
     }
   }
 
+  ///
+  ///
+  ///
   @override
   void markDirty() {
     _cameraDirty = true;
   }
 
-  final _loading = <Cesium3DTile>{};
-
+  ///
+  ///
+  ///
   Future _load(Cesium3DTile tile) async {
     if (_loaded.contains(tile) || _loading.contains(tile)) {
       return;
@@ -137,10 +156,8 @@ class QueueingTilesetManager<T> extends TilesetManager {
       return;
     }
     var transform = tile.getTransform();
-    
-    var afterRtc =
-          ecefToGltf * await tile.applyRtcCenter(transform) *
-         yUpToZUp;
+
+    var afterRtc = ecefToGltf * await tile.applyRtcCenter(transform) * yUpToZUp;
 
     var entity = await renderer.loadGlb(data, afterRtc, tile.tileset);
     _entities[tile] = entity;
@@ -162,15 +179,10 @@ class QueueingTilesetManager<T> extends TilesetManager {
     if (_layers.containsKey(layer)) {
       throw Exception("Layer has already been added");
     }
-    _layers[layer] = <CesiumTile>[];
+    _layers[layer] = <CesiumTile>{};
     renderer.setLayerVisibility(layer.renderLayer, true);
     _renderable[layer] = <Cesium3DTile>{};
   }
-
-  ///
-  ///
-  ///
-  final Map<T, RenderableMarker> _markers = {};
 
   ///
   ///
@@ -251,28 +263,42 @@ class QueueingTilesetManager<T> extends TilesetManager {
     }
   }
 
-  final _renderable = <Cesium3DTileset, Set<Cesium3DTile>>{};
+  final _markerCenters = <RenderableMarker,
+      ({Cesium3DTile tile, Vector3 center, double distance, bool dirty})>{};
 
-  bool _updating = false;
-
+  ///
+  ///
+  ///
   Future _update() async {
     if (_updating) {
       return;
     }
+
     _updating = true;
+
     var viewport = await renderer.viewportDimensions;
+
     final layers = _layers.keys.toList();
+
     final modelMatrix = await renderer.cameraModelMatrix;
+
     final cameraPosition = modelMatrix.getTranslation();
+
     final forward = -modelMatrix.forward;
+
     final up = modelMatrix.up;
+
+    final horizontalFov = await renderer.horizontalFovInRadians;
+
+    final verticalFov = await renderer.verticalFovInRadians;
+
     for (final layer in layers) {
       var renderable = (await layer.updateCameraAndViewport(
               cameraPosition,
               up,
               forward,
-              (await renderer.horizontalFovInRadians),
-              (await renderer.verticalFovInRadians),
+              horizontalFov,
+              verticalFov,
               viewport.width.toDouble(),
               viewport.height.toDouble()))
           .toSet();
@@ -287,6 +313,24 @@ class QueueingTilesetManager<T> extends TilesetManager {
       _renderable[layer]!.addAll(renderable);
 
       for (var tile in _renderable[layer]!) {
+        // find the closest tile to this marker
+        for (final marker in _markers.values) {
+          var tileCenter = tile.getBoundingVolumeCenter();
+
+          if (tileCenter == null) {
+            continue;
+          }
+          var distance = (marker.position - tileCenter).length;
+          if (_markerCenters[marker] == null ||
+              distance < _markerCenters[marker]!.distance) {
+            _markerCenters[marker] = (
+              tile: tile,
+              distance: distance,
+              center: tileCenter,
+              dirty: true
+            );
+          }
+        }
         switch (tile.state) {
           case CesiumTileSelectionState.Rendered:
             if (!_loaded.contains(tile)) {
@@ -314,12 +358,47 @@ class QueueingTilesetManager<T> extends TilesetManager {
             _loadQueue.remove(tile);
         }
       }
+
+      for (final entry in _markers.entries) {
+        final markerEntity = entry.key;
+        final marker = entry.value;
+
+        final markerCenter = _markerCenters[marker];
+
+        if (markerCenter == null) {
+          continue;
+        }
+
+        bool isVisible = (cameraPosition - marker.position).length <
+            marker.visibilityDistance;
+        await renderer.setEntityVisibility(markerEntity, isVisible);
+
+        if (!isVisible) {
+          continue;
+        }
+
+        if (markerCenter.dirty) {
+          var transform = await renderer.getEntityTransform(markerEntity);
+
+          var position = marker.position
+              .normalized()
+              .scaled(markerCenter.center.length + marker.heightAboveTerrain);
+
+          transform = Matrix4.compose(
+              position, Quaternion.identity(), Vector3.all(1.0));
+
+          await renderer.setEntityTransform(markerEntity, transform);
+
+          _markerCenters[marker] = (
+            tile: markerCenter.tile,
+            distance: markerCenter.distance,
+            center: markerCenter.center,
+            dirty: false
+          );
+        }
+      }
     }
-    for (final marker in _markers.entries) {
-      bool isVisible = (cameraPosition - marker.value.position).length <
-          marker.value.visibilityDistance;
-      await renderer.setEntityVisibility(marker.key, isVisible);
-    }
+
     _updating = false;
   }
 }
