@@ -139,9 +139,9 @@ struct CesiumBoundingVolume {
 typedef struct CesiumBoundingVolume CesiumBoundingVolume;
 
 struct CesiumCartographic { 
-  double longitude;
-  double latitude;
-  double height;
+  double longitude; // radians
+  double latitude;  // radians
+  double height; // metres
 };
 typedef struct CesiumCartographic CesiumCartographic; 
 
