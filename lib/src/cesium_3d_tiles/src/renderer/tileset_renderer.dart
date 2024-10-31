@@ -91,6 +91,16 @@ abstract class TilesetRenderer<T> {
   /// @return A Future that resolves to the loaded entity.
   Future<T> loadMarker(RenderableMarker marker);
 
+  ///
+  ///
+  ///
+  Future<Matrix4> getEntityTransform(T entity);
+
+  ///
+  ///
+  ///
+  Future setEntityTransform(T entity, Matrix4 transform);
+
   /// Animates the camera from its current orientation to the model matrix
   /// specified by [newModelMatrix]
   ///
