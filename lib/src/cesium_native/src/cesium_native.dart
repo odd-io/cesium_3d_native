@@ -357,6 +357,11 @@ class CesiumNative {
     );
   }
 
+  Vector3 getBoundingVolumeCenter(CesiumTile tile) {
+    var center = g.CesiumTile_getBoundingVolumeCenter(tile);
+    return Vector3(center.x, center.y, center.z);
+  }
+
   ///
   /// Returns the bounding volume of [tile] as:
   /// - CesiumBoundingVolumeOrientedBox

@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:cesium_3d_tiles/cesium_3d_tiles.dart';
 import 'package:cesium_3d_tiles/src/cesium_3d_tiles/cesium_3d_tiles.dart';
 import 'package:vector_math/vector_math_64.dart';
 import '../../cesium_native/src/cesium_native.dart';
@@ -28,6 +29,15 @@ class Cesium3DTile {
     return tileset.getTransform(_tile);
   }
 
+  Vector3? getBoundingVolumeCenter() {
+    return tileset.getBoundingVolumeCenter(_tile);
+  }
+
+  Vector3 getExtent() {
+    return tileset.getExtent(_tile);
+  }
+
+ 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||

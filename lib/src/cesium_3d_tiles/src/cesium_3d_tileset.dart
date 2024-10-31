@@ -167,23 +167,8 @@ class Cesium3DTileset {
   ///
   ///
   ///
-  Vector3? getTileCenter(CesiumTile tile) {
-    var volume = CesiumNative.instance
-        .getBoundingVolume(tile, convertRegionToOrientedBox: true);
-    if (volume is CesiumBoundingVolumeOrientedBox) {
-      return (ecefToGltf *
-              Vector4(volume.center.x, volume.center.y, volume.center.z, 1.0))
-          .xyz;
-    } else if (volume is CesiumBoundingVolumeRegion) {
-      // should never happen
-      throw UnimplementedError();
-    } else if (volume is CesiumBoundingVolumeSphere) {
-      return (ecefToGltf *
-              Vector4(volume.center.x, volume.center.y, volume.center.z, 1.0))
-          .xyz;
-    } else {
-      throw Exception("TODO");
-    }
+  Vector3? getBoundingVolumeCenter(CesiumTile tile) {
+    return ecefToGltf * CesiumNative.instance.getBoundingVolumeCenter(tile);
   }
 
   ///
