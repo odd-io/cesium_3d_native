@@ -145,7 +145,7 @@ class Cesium3DTileset {
     return ecefToGltf * cartesian;
   }
 
-  static Vector3 cartesianToCartographic(Vector3 cartesian) {
+  static CartographicPosition cartesianToCartographic(Vector3 cartesian) {
     // Transform from glTF to ECEF coordinates
     final ecefPosition = gltfToEcef * cartesian;
 
@@ -153,8 +153,7 @@ class Cesium3DTileset {
     final cartographic =
         CesiumNative.instance.getCartographicPositionForPoint(ecefPosition);
 
-    return Vector3(
-        cartographic.latitude, cartographic.longitude, cartographic.height);
+    return cartographic;
   }
 
   ///
