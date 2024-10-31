@@ -163,16 +163,16 @@ public:
             curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE, &contentType);
 
             // Log timing information
-            spdlog::default_logger()->info("Request completed: {} {}", verb, url);
-            spdlog::default_logger()->info("Status: {}", statusCode);
-            spdlog::default_logger()->info("Total time: {:.2f} ms", duration.count());
-            spdlog::default_logger()->info("CURL Timing breakdown:");
-            spdlog::default_logger()->info("  DNS lookup:    {:.2f} ms", nameLookupTime * 1000);
-            spdlog::default_logger()->info("  TCP connect:   {:.2f} ms", (connectTime - nameLookupTime) * 1000);
-            spdlog::default_logger()->info("  SSL handshake: {:.2f} ms", (appConnectTime - connectTime) * 1000);
-            spdlog::default_logger()->info("  Pre-transfer:  {:.2f} ms", (preTransferTime - appConnectTime) * 1000);
-            spdlog::default_logger()->info("  Transfer:      {:.2f} ms", (totalTime - startTransferTime) * 1000);
-            spdlog::default_logger()->info("Response size: {} bytes", responseData.size());
+            // spdlog::default_logger()->info("Request completed: {} {}", verb, url);
+            // spdlog::default_logger()->info("Status: {}", statusCode);
+            // spdlog::default_logger()->info("Total time: {:.2f} ms", duration.count());
+            // spdlog::default_logger()->info("CURL Timing breakdown:");
+            // spdlog::default_logger()->info("  DNS lookup:    {:.2f} ms", nameLookupTime * 1000);
+            // spdlog::default_logger()->info("  TCP connect:   {:.2f} ms", (connectTime - nameLookupTime) * 1000);
+            // spdlog::default_logger()->info("  SSL handshake: {:.2f} ms", (appConnectTime - connectTime) * 1000);
+            // spdlog::default_logger()->info("  Pre-transfer:  {:.2f} ms", (preTransferTime - appConnectTime) * 1000);
+            // spdlog::default_logger()->info("  Transfer:      {:.2f} ms", (totalTime - startTransferTime) * 1000);
+            // spdlog::default_logger()->info("Response size: {} bytes", responseData.size());
 
             auto response = std::make_unique<CurlAssetResponse>(statusCode, contentType ? contentType : "", responseData);
             request->setResponse(std::move(response));
