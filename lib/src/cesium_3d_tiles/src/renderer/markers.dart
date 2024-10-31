@@ -46,6 +46,7 @@ class GeometryRenderableMarker extends RenderableMarker {
   GeometryRenderableMarker(
       {required super.position,
       required super.onClick,
+      super.visibilityDistance=100.0,
       this.geometryType = GeometryType.sphere,
       this.r = 1.0,
       this.g = 1.0,
