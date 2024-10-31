@@ -189,6 +189,12 @@ class IsolateTilesetManager extends TilesetManager {
   void markDirty() {
     _sendMessage("markDirty");
   }
+  
+  @override
+  Future updateMarkers() {
+    // TODO: implement updateMarkers
+    throw UnimplementedError();
+  }
 }
 
 class _IsolateManagerRequest {
@@ -305,5 +311,18 @@ class _IsolateRenderer extends TilesetRenderer {
   @override
   Future setDistanceToSurface(double? distance) {
     return _sendMessage('setDistanceToSurface', [distance]);
+  }
+
+  
+  @override
+  Future<Matrix4> getEntityTransform(entity) {
+    // TODO: implement getEntityTransform
+    throw UnimplementedError();
+  }
+  
+  @override
+  Future setEntityTransform(entity, Matrix4 transform) {
+    // TODO: implement setEntityTransform
+    throw UnimplementedError();
   }
 }
