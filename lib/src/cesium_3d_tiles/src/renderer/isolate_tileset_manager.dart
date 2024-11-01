@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:isolate';
 import 'dart:typed_data';
+import 'package:cesium_3d_tiles/src/cesium_3d_tiles/src/cesium_3d_tile.dart';
 import 'package:cesium_3d_tiles/src/cesium_3d_tiles/src/cesium_3d_tileset.dart';
 import 'package:cesium_3d_tiles/src/cesium_3d_tiles/src/renderer/markers.dart';
 import 'package:cesium_3d_tiles/src/cesium_3d_tiles/src/renderer/queuing_tileset_manager.dart';
@@ -253,7 +254,7 @@ class _IsolateRenderer extends TilesetRenderer {
   }
 
   @override
-  Future loadGlb(Uint8List glb, Matrix4 transform, Cesium3DTileset layer) {
+  Future loadGlb(Uint8List glb, Matrix4 transform, Cesium3DTile layer) {
     return _sendMessage('loadGlb', [glb, transform, layer]);
   }
 
@@ -325,4 +326,6 @@ class _IsolateRenderer extends TilesetRenderer {
     // TODO: implement setEntityTransform
     throw UnimplementedError();
   }
+   
+  
 }
