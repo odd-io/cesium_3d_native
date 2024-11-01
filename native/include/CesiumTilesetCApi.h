@@ -228,7 +228,9 @@ API_EXPORT CesiumTile* CesiumTileset_getRootTile(CesiumTileset* tileset);
 
 API_EXPORT CesiumBoundingVolume CesiumTile_getBoundingVolume(CesiumTile* tile, bool convertToOrientedBox);
 
-API_EXPORT double CesiumTile_squaredDistanceToBoundingVolume(CesiumTile* oTile, CesiumViewState oViewState);
+API_EXPORT double CesiumTile_viewStateSquaredDistanceToBoundingVolume(CesiumTile* oTile, CesiumViewState oViewState);
+
+API_EXPORT double CesiumTile_squaredDistanceToBoundingVolume(CesiumTile* oTile, double3 point);
 
 API_EXPORT double3 CesiumTile_getBoundingVolumeCenter(CesiumTile* tile);
 
