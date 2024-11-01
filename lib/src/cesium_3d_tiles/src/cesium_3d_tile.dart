@@ -1,5 +1,5 @@
 import 'dart:typed_data';
-
+import 'dart:math';
 import 'package:cesium_3d_tiles/cesium_3d_tiles.dart';
 import 'package:cesium_3d_tiles/src/cesium_3d_tiles/cesium_3d_tiles.dart';
 import 'package:vector_math/vector_math_64.dart';
@@ -37,7 +37,14 @@ class Cesium3DTile {
     return tileset.getExtent(_tile);
   }
 
- 
+  ///
+  /// Returns the squared distance from [point] to the bounding volume for this 
+  /// tile.
+  /// 
+  double distanceToBoundingVolume(Vector3 point) {
+    return tileset.getDistanceToBoundingVolume(point, _tile);
+  }
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
