@@ -159,7 +159,8 @@ class QueueingTilesetManager<T> extends TilesetManager {
 
     var afterRtc = ecefToGltf * await tile.applyRtcCenter(transform) * yUpToZUp;
 
-    var entity = await renderer.loadGlb(data, afterRtc, tile.tileset);
+    var entity = await renderer.loadGlb(data, afterRtc, tile);
+
     _entities[tile] = entity;
 
     _loaded.add(tile);
@@ -304,39 +305,50 @@ class QueueingTilesetManager<T> extends TilesetManager {
           .toSet();
 
       // if any tiles are no longer renderable, we can remove them straight away
-      var disjunction = renderable.difference(_renderable[layer]!);
-      for (var tile in disjunction) {
-        _cullQueue.add(tile);
-      }
+      // var disjunction = renderable.difference(_renderable[layer]!);
+      // for (var tile in disjunction) {
+      //   _cullQueue.add(tile);
+      // }
+      // _renderable[layer]!.clear();
 
-      _renderable[layer]!.clear();
       _renderable[layer]!.addAll(renderable);
 
+      // iterate over every renderable tile to determine its state
       for (var tile in _renderable[layer]!) {
-        // find the closest tile to this marker
-        for (final marker in _markers.values) {
-          var tileCenter = tile.getBoundingVolumeCenter();
-
-          if (tileCenter == null) {
-            continue;
-          }
-          var distance = (marker.position - tileCenter).length;
-          if (_markerCenters[marker] == null ||
-              distance < _markerCenters[marker]!.distance) {
-            _markerCenters[marker] = (
-              tile: tile,
-              distance: distance,
-              center: tileCenter,
-              dirty: true
-            );
-          }
-        }
         switch (tile.state) {
           case CesiumTileSelectionState.Rendered:
             if (!_loaded.contains(tile)) {
               _loadQueue.add(tile);
             }
             await _reveal(tile);
+
+            // we want markers (all placed at height 0)
+            // to be rendered above the terrain, but we currently have no
+            // terrain data and we're not projecting onto the mesh.
+            // our current hackish workaround is to find the closest
+            // bounding volume center point to each marker position (scaled
+            // 500m above the surface). The marker will then be positioned at 
+            // heightAboveTerrain above that center point.
+            for (final marker in _markers.values) {
+              var tileEntity = _entities[tile];
+              if (tileEntity == null) {
+                continue;
+              }
+              var scaledMarkerPos = marker.position
+                  .normalized()
+                  .scaled(marker.position.length + 500);
+              var distance = tile.distanceToBoundingVolume(scaledMarkerPos);
+              if (_markerCenters[marker] == null ||
+                  distance < _markerCenters[marker]!.distance) {
+                _markerCenters[marker] = (
+                  tile: tile,
+                  distance: distance,
+                  center: tile.getBoundingVolumeCenter()!,
+                  dirty: true
+                );
+              }
+            }
+
           case CesiumTileSelectionState.Refined:
             _loadQueue.remove(tile);
             if (_loaded.contains(tile)) {
