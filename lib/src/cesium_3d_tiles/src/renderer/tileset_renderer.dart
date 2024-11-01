@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
+import 'package:cesium_3d_tiles/cesium_3d_tiles.dart';
 import 'package:cesium_3d_tiles/src/cesium_3d_tiles/src/cesium_3d_tileset.dart';
 import 'package:vector_math/vector_math_64.dart';
 
@@ -68,7 +69,7 @@ abstract class TilesetRenderer<T> {
   /// @param transform The tile's global transform
   /// @param priority The rendering priority of the model.
   /// @return A Future that resolves to the loaded entity.
-  Future<T> loadGlb(Uint8List glb, Matrix4 transform, Cesium3DTileset layer);
+  Future<T> loadGlb(Uint8List glb, Matrix4 transform, Cesium3DTile tile);
 
   /// Removes a previously loaded GLB model from the scene.
   ///
@@ -217,5 +218,4 @@ abstract class TilesetRenderer<T> {
   }
 
   Future setDistanceToSurface(double? distance);
-
 }
