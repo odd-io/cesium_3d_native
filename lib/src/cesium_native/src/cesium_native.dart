@@ -414,10 +414,18 @@ class CesiumNative {
   ///
   ///
   ///
-  double squaredDistanceToBoundingVolume(
+  double viewStateSquaredDistanceToBoundingVolume(
       CesiumView viewState, CesiumTile tile) {
-    return g.CesiumTile_squaredDistanceToBoundingVolume(
+    return g.CesiumTile_viewStateSquaredDistanceToBoundingVolume(
         tile, _toStruct(viewState));
+  }
+
+  double squaredDistanceToBoundingVolume(Vector3 point, CesiumTile tile) {
+    var dPoint = Struct.create<g.double3>();
+    dPoint.x = point.x;
+    dPoint.y = point.y;
+    dPoint.z = point.z;
+    return g.CesiumTile_squaredDistanceToBoundingVolume(tile, dPoint);
   }
 
   ///
