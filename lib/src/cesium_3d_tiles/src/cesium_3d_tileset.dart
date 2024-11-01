@@ -124,12 +124,18 @@ class Cesium3DTileset {
   /// Returns the distance from the camera to the nearest point on the bounding
   /// volume of the WGS84 ellipsoid.
   ///
-  double? getDistanceToBoundingVolume() {
-    if (rootTile == null) {
-      return null;
-    }
+  double getViewDistanceToBoundingVolume(CesiumTile tile) {
     return sqrt(CesiumNative.instance
-        .squaredDistanceToBoundingVolume(_view, rootTile!));
+        .viewStateSquaredDistanceToBoundingVolume(_view, tile));
+  }
+
+  ///
+  /// Returns the distance from the camera to the nearest point on the bounding
+  /// volume of the WGS84 ellipsoid.
+  ///
+  double getDistanceToBoundingVolume(Vector3 point, CesiumTile tile) {
+    return sqrt(CesiumNative.instance
+        .squaredDistanceToBoundingVolume(gltfToEcef * point, tile));
   }
 
   ///
