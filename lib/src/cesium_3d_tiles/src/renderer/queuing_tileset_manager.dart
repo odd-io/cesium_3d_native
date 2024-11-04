@@ -305,11 +305,11 @@ class QueueingTilesetManager<T> extends TilesetManager {
           .toSet();
 
       // if any tiles are no longer renderable, we can remove them straight away
-      // var disjunction = renderable.difference(_renderable[layer]!);
-      // for (var tile in disjunction) {
-      //   _cullQueue.add(tile);
-      // }
-      // _renderable[layer]!.clear();
+      var disjunction = renderable.difference(_renderable[layer]!);
+      for (var tile in disjunction) {
+        _cullQueue.add(tile);
+      }
+      _renderable[layer]!.clear();
 
       _renderable[layer]!.addAll(renderable);
 
