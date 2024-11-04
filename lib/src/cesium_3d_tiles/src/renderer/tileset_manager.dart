@@ -99,4 +99,9 @@ abstract class TilesetManager {
   ///
   void markDirty();
 
+  /// Removes a marker from the TilesetManager.
+  ///
+  /// @param marker The marker to be removed.
+  /// @return A Future that completes when the marker is removed.
+  Future removeMarker(RenderableMarker marker);
 }

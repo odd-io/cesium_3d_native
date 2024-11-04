@@ -327,7 +327,7 @@ class QueueingTilesetManager<T> extends TilesetManager {
             // terrain data and we're not projecting onto the mesh.
             // our current hackish workaround is to find the closest
             // bounding volume center point to each marker position (scaled
-            // 500m above the surface). The marker will then be positioned at 
+            // 500m above the surface). The marker will then be positioned at
             // heightAboveTerrain above that center point.
             for (final marker in _markers.values) {
               var tileEntity = _entities[tile];
@@ -412,5 +412,26 @@ class QueueingTilesetManager<T> extends TilesetManager {
     }
 
     _updating = false;
+  }
+
+  @override
+  Future removeMarker(RenderableMarker marker) async {
+    // Find the entity associated with this marker
+    T? entityToRemove;
+    for (final entry in _markers.entries) {
+      if (entry.value == marker) {
+        entityToRemove = entry.key;
+        break;
+      }
+    }
+
+    if (entityToRemove != null) {
+      // Remove the marker from renderer
+      await renderer.removeEntity(entityToRemove);
+      // Remove from markers map
+      _markers.remove(entityToRemove);
+      // Remove from marker centers tracking
+      _markerCenters.remove(marker);
+    }
   }
 }

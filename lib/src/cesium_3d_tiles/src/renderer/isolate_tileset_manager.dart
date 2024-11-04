@@ -55,6 +55,9 @@ void _isolateEntryPoint(List<dynamic> message) {
           result = await manager.remove(message.args[0] as Cesium3DTileset);
         case 'markDirty':
           manager.markDirty();
+        case 'removeMarker':
+          result =
+              await manager.removeMarker(message.args[0] as RenderableMarker);
         default:
           throw UnimplementedError('Method ${message.method} not implemented');
       }
@@ -190,11 +193,16 @@ class IsolateTilesetManager extends TilesetManager {
   void markDirty() {
     _sendMessage("markDirty");
   }
-  
+
   @override
   Future updateMarkers() {
     // TODO: implement updateMarkers
     throw UnimplementedError();
+  }
+
+  @override
+  Future removeMarker(RenderableMarker marker) {
+    return _sendMessage('removeMarker', [marker]);
   }
 }
 
@@ -314,18 +322,15 @@ class _IsolateRenderer extends TilesetRenderer {
     return _sendMessage('setDistanceToSurface', [distance]);
   }
 
-  
   @override
   Future<Matrix4> getEntityTransform(entity) {
     // TODO: implement getEntityTransform
     throw UnimplementedError();
   }
-  
+
   @override
   Future setEntityTransform(entity, Matrix4 transform) {
     // TODO: implement setEntityTransform
     throw UnimplementedError();
   }
-   
-  
 }
