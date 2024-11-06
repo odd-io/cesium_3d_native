@@ -16,10 +16,15 @@ abstract class RenderableMarker {
   final Vector3 position;
   final void Function() onClick;
   final double visibilityDistance;
+  final double heightAboveTerrain;
 
   RenderableMarkerType get type;
 
-  RenderableMarker({required this.position, required this.onClick, this.visibilityDistance=100.0});
+  RenderableMarker(
+      {required this.position,
+      required this.onClick,
+      this.visibilityDistance = 100.0,
+      this.heightAboveTerrain = 1.0});
 }
 
 class GltfRenderableMarker extends RenderableMarker {
@@ -46,6 +51,8 @@ class GeometryRenderableMarker extends RenderableMarker {
   GeometryRenderableMarker(
       {required super.position,
       required super.onClick,
+      super.visibilityDistance = 100.0,
+      super.heightAboveTerrain = 10.0,
       this.geometryType = GeometryType.sphere,
       this.r = 1.0,
       this.g = 1.0,

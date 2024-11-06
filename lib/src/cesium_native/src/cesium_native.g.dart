@@ -164,9 +164,15 @@ external CesiumBoundingVolume CesiumTile_getBoundingVolume(
 );
 
 @ffi.Native<ffi.Double Function(ffi.Pointer<CesiumTile>, CesiumViewState)>()
-external double CesiumTile_squaredDistanceToBoundingVolume(
+external double CesiumTile_viewStateSquaredDistanceToBoundingVolume(
   ffi.Pointer<CesiumTile> oTile,
   CesiumViewState oViewState,
+);
+
+@ffi.Native<ffi.Double Function(ffi.Pointer<CesiumTile>, double3)>()
+external double CesiumTile_squaredDistanceToBoundingVolume(
+  ffi.Pointer<CesiumTile> oTile,
+  double3 point,
 );
 
 @ffi.Native<double3 Function(ffi.Pointer<CesiumTile>)>()

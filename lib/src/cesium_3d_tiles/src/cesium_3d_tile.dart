@@ -1,5 +1,6 @@
 import 'dart:typed_data';
-
+import 'dart:math';
+import 'package:cesium_3d_tiles/cesium_3d_tiles.dart';
 import 'package:cesium_3d_tiles/src/cesium_3d_tiles/cesium_3d_tiles.dart';
 import 'package:vector_math/vector_math_64.dart';
 import '../../cesium_native/src/cesium_native.dart';
@@ -26,6 +27,22 @@ class Cesium3DTile {
 
   Matrix4 getTransform() {
     return tileset.getTransform(_tile);
+  }
+
+  Vector3? getBoundingVolumeCenter() {
+    return tileset.getBoundingVolumeCenter(_tile);
+  }
+
+  Vector3 getExtent() {
+    return tileset.getExtent(_tile);
+  }
+
+  ///
+  /// Returns the squared distance from [point] to the bounding volume for this 
+  /// tile.
+  /// 
+  double distanceToBoundingVolume(Vector3 point) {
+    return tileset.getDistanceToBoundingVolume(point, _tile);
   }
 
   @override

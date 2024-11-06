@@ -58,7 +58,7 @@ abstract class TilesetManager {
       throw Exception("Root tile not set or not yet loaded");
     }
 
-    var position = tileset.getTileCenter(tileset.rootTile!);
+    var position = tileset.getBoundingVolumeCenter(tileset.rootTile!);
     if (position == null) {
       throw Exception(
           "Could not fetch root camera position; has the root tile been loaded?");
@@ -87,16 +87,21 @@ abstract class TilesetManager {
     return viewMatrix;
   }
 
-
-  /// Gets the distance from [point] to the surface of the first layer. 
+  /// Gets the distance from [point] to the surface of the first layer.
   /// If [point] is null, the current camera position will be used.
   ///
   /// @return The distance to the surface, or null if there are no layers.
   Future<double?> getDistanceToSurface({Vector3? point});
 
   ///
-  /// Marks the camera as dirty, indicating that the Cesium Tileset view should 
+  /// Marks the camera as dirty, indicating that the Cesium Tileset view should
   /// be updated with the most recent camera matrix.
-  /// 
+  ///
   void markDirty();
+
+  /// Removes a marker from the TilesetManager.
+  ///
+  /// @param marker The marker to be removed.
+  /// @return A Future that completes when the marker is removed.
+  Future removeMarker(RenderableMarker marker);
 }

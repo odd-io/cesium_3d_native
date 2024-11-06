@@ -121,15 +121,21 @@ class Cesium3DTileset {
   }
 
   ///
-  /// Returns the distance from the camera to the nearest point on the bounding
-  /// volume of the WGS84 ellipsoid.
+  /// Returns the squared distance from the camera to the nearest point on the bounding
+  /// volume for [tile].
   ///
-  double? getDistanceToBoundingVolume() {
-    if (rootTile == null) {
-      return null;
-    }
+  double getViewDistanceToBoundingVolume(CesiumTile tile) {
     return sqrt(CesiumNative.instance
-        .squaredDistanceToBoundingVolume(_view, rootTile!));
+        .viewStateSquaredDistanceToBoundingVolume(_view, tile));
+  }
+
+  ///
+  /// Returns the squared distance from [point] to the nearest point on the bounding
+  /// volume for [tile].
+  ///
+  double getDistanceToBoundingVolume(Vector3 point, CesiumTile tile) {
+    return sqrt(CesiumNative.instance
+        .squaredDistanceToBoundingVolume(gltfToEcef * point, tile));
   }
 
   ///
@@ -145,6 +151,17 @@ class Cesium3DTileset {
     return ecefToGltf * cartesian;
   }
 
+  static CartographicPosition cartesianToCartographic(Vector3 cartesian) {
+    // Transform from glTF to ECEF coordinates
+    final ecefPosition = gltfToEcef * cartesian;
+
+    // Convert to cartographic coordinates
+    final cartographic =
+        CesiumNative.instance.getCartographicPositionForPoint(ecefPosition);
+
+    return cartographic;
+  }
+
   ///
   ///
   ///
@@ -156,23 +173,8 @@ class Cesium3DTileset {
   ///
   ///
   ///
-  Vector3? getTileCenter(CesiumTile tile) {
-    var volume = CesiumNative.instance
-        .getBoundingVolume(tile, convertRegionToOrientedBox: true);
-    if (volume is CesiumBoundingVolumeOrientedBox) {
-      return (ecefToGltf *
-              Vector4(volume.center.x, volume.center.y, volume.center.z, 1.0))
-          .xyz;
-    } else if (volume is CesiumBoundingVolumeRegion) {
-      // should never happen
-      throw UnimplementedError();
-    } else if (volume is CesiumBoundingVolumeSphere) {
-      return (ecefToGltf *
-              Vector4(volume.center.x, volume.center.y, volume.center.z, 1.0))
-          .xyz;
-    } else {
-      throw Exception("TODO");
-    }
+  Vector3? getBoundingVolumeCenter(CesiumTile tile) {
+    return ecefToGltf * CesiumNative.instance.getBoundingVolumeCenter(tile);
   }
 
   ///

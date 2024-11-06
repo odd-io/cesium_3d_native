@@ -587,7 +587,7 @@ CesiumBoundingVolume CesiumTile_getBoundingVolume(CesiumTile* cesiumTile, bool c
     return result;
 }
 
-double CesiumTile_squaredDistanceToBoundingVolume(CesiumTile* oTile, CesiumViewState oViewState) {
+double CesiumTile_viewStateSquaredDistanceToBoundingVolume(CesiumTile* oTile, CesiumViewState oViewState) {
     auto ellipsoid = CesiumGeospatial::Ellipsoid::WGS84;
 
     Cesium3DTilesSelection::ViewState viewState = Cesium3DTilesSelection::ViewState::create(
@@ -603,6 +603,25 @@ double CesiumTile_squaredDistanceToBoundingVolume(CesiumTile* oTile, CesiumViewS
     Cesium3DTilesSelection::Tile* tile = reinterpret_cast<Cesium3DTilesSelection::Tile*>(oTile);
     return viewState.computeDistanceSquaredToBoundingVolume(tile->getBoundingVolume());
 }
+
+double CesiumTile_squaredDistanceToBoundingVolume(CesiumTile* oTile, double3 point) {
+    Cesium3DTilesSelection::Tile* tile = reinterpret_cast<Cesium3DTilesSelection::Tile*>(oTile);
+    glm::dvec3 gpoint { point.x, point.y, point.z };
+    auto bv = tile->getBoundingVolume();
+     if (std::holds_alternative<CesiumGeometry::BoundingSphere>(bv)) {
+        return std::get<CesiumGeometry::BoundingSphere>(bv).computeDistanceSquaredToPosition(gpoint);
+    }
+    else if (std::holds_alternative<CesiumGeometry::OrientedBoundingBox>(bv)) {
+        return std::get<CesiumGeometry::OrientedBoundingBox>(bv).computeDistanceSquaredToPosition(gpoint);
+    }
+    else if (std::holds_alternative<CesiumGeospatial::BoundingRegion>(bv)) {
+        return std::get<CesiumGeospatial::BoundingRegion>(bv).computeDistanceSquaredToPosition(gpoint);
+    }
+    else {
+        return -1.0;
+    }
+}
+
 
 
 double3 CesiumTile_getBoundingVolumeCenter(CesiumTile* cesiumTile) {

@@ -28,9 +28,18 @@ import '../cesium_3d_tile.dart';
 /// using your own chosen rendering framework.
 ///
 class QueueingTilesetManager<T> extends TilesetManager {
+  final _loading = <Cesium3DTile>{};
   final _loaded = <Cesium3DTile>{};
   final _loadQueue = <Cesium3DTile>{};
   final _cullQueue = <Cesium3DTile>{};
+  final _renderable = <Cesium3DTileset, Set<Cesium3DTile>>{};
+
+  bool _updating = false;
+
+  ///
+  ///
+  ///
+  final Map<T, RenderableMarker> _markers = {};
 
   bool _handlingQueue = false;
   bool _cameraDirty = false;
@@ -38,7 +47,7 @@ class QueueingTilesetManager<T> extends TilesetManager {
   Timer? _timer;
   DateTime? _lastTileUpdate;
 
-  final _layers = <Cesium3DTileset, List<CesiumTile>>{};
+  final _layers = <Cesium3DTileset, Set<CesiumTile>>{};
   final _layersToRemove = <Cesium3DTileset>{};
   final _entities = <Cesium3DTile, T>{};
 
@@ -52,6 +61,9 @@ class QueueingTilesetManager<T> extends TilesetManager {
     _timer = Timer.periodic(const Duration(milliseconds: 8), _tick);
   }
 
+  ///
+  ///
+  ///
   Future _tick(_) async {
     // skip all updates if we haven't finished the last iteration
     if (_handlingQueue) {
@@ -101,6 +113,9 @@ class QueueingTilesetManager<T> extends TilesetManager {
     _handlingQueue = false;
   }
 
+  ///
+  ///
+  ///
   Future _remove(Cesium3DTile tile) async {
     if (_loaded.contains(tile)) {
       final entity = _entities[tile];
@@ -115,13 +130,17 @@ class QueueingTilesetManager<T> extends TilesetManager {
     }
   }
 
+  ///
+  ///
+  ///
   @override
   void markDirty() {
     _cameraDirty = true;
   }
 
-  final _loading = <Cesium3DTile>{};
-
+  ///
+  ///
+  ///
   Future _load(Cesium3DTile tile) async {
     if (_loaded.contains(tile) || _loading.contains(tile)) {
       return;
@@ -137,12 +156,11 @@ class QueueingTilesetManager<T> extends TilesetManager {
       return;
     }
     var transform = tile.getTransform();
-    
-    var afterRtc =
-          ecefToGltf * await tile.applyRtcCenter(transform) *
-         yUpToZUp;
 
-    var entity = await renderer.loadGlb(data, afterRtc, tile.tileset);
+    var afterRtc = ecefToGltf * await tile.applyRtcCenter(transform) * yUpToZUp;
+
+    var entity = await renderer.loadGlb(data, afterRtc, tile);
+
     _entities[tile] = entity;
 
     _loaded.add(tile);
@@ -162,15 +180,10 @@ class QueueingTilesetManager<T> extends TilesetManager {
     if (_layers.containsKey(layer)) {
       throw Exception("Layer has already been added");
     }
-    _layers[layer] = <CesiumTile>[];
+    _layers[layer] = <CesiumTile>{};
     renderer.setLayerVisibility(layer.renderLayer, true);
     _renderable[layer] = <Cesium3DTile>{};
   }
-
-  ///
-  ///
-  ///
-  final Map<T, RenderableMarker> _markers = {};
 
   ///
   ///
@@ -251,28 +264,42 @@ class QueueingTilesetManager<T> extends TilesetManager {
     }
   }
 
-  final _renderable = <Cesium3DTileset, Set<Cesium3DTile>>{};
+  final _markerCenters = <RenderableMarker,
+      ({Cesium3DTile tile, Vector3 center, double distance, bool dirty})>{};
 
-  bool _updating = false;
-
+  ///
+  ///
+  ///
   Future _update() async {
     if (_updating) {
       return;
     }
+
     _updating = true;
+
     var viewport = await renderer.viewportDimensions;
+
     final layers = _layers.keys.toList();
+
     final modelMatrix = await renderer.cameraModelMatrix;
+
     final cameraPosition = modelMatrix.getTranslation();
+
     final forward = -modelMatrix.forward;
+
     final up = modelMatrix.up;
+
+    final horizontalFov = await renderer.horizontalFovInRadians;
+
+    final verticalFov = await renderer.verticalFovInRadians;
+
     for (final layer in layers) {
       var renderable = (await layer.updateCameraAndViewport(
               cameraPosition,
               up,
               forward,
-              (await renderer.horizontalFovInRadians),
-              (await renderer.verticalFovInRadians),
+              horizontalFov,
+              verticalFov,
               viewport.width.toDouble(),
               viewport.height.toDouble()))
           .toSet();
@@ -282,10 +309,11 @@ class QueueingTilesetManager<T> extends TilesetManager {
       for (var tile in disjunction) {
         _cullQueue.add(tile);
       }
-
       _renderable[layer]!.clear();
+
       _renderable[layer]!.addAll(renderable);
 
+      // iterate over every renderable tile to determine its state
       for (var tile in _renderable[layer]!) {
         switch (tile.state) {
           case CesiumTileSelectionState.Rendered:
@@ -293,6 +321,34 @@ class QueueingTilesetManager<T> extends TilesetManager {
               _loadQueue.add(tile);
             }
             await _reveal(tile);
+
+            // we want markers (all placed at height 0)
+            // to be rendered above the terrain, but we currently have no
+            // terrain data and we're not projecting onto the mesh.
+            // our current hackish workaround is to find the closest
+            // bounding volume center point to each marker position (scaled
+            // 500m above the surface). The marker will then be positioned at
+            // heightAboveTerrain above that center point.
+            for (final marker in _markers.values) {
+              var tileEntity = _entities[tile];
+              if (tileEntity == null) {
+                continue;
+              }
+              var scaledMarkerPos = marker.position
+                  .normalized()
+                  .scaled(marker.position.length + 500);
+              var distance = tile.distanceToBoundingVolume(scaledMarkerPos);
+              if (_markerCenters[marker] == null ||
+                  distance < _markerCenters[marker]!.distance) {
+                _markerCenters[marker] = (
+                  tile: tile,
+                  distance: distance,
+                  center: tile.getBoundingVolumeCenter()!,
+                  dirty: true
+                );
+              }
+            }
+
           case CesiumTileSelectionState.Refined:
             _loadQueue.remove(tile);
             if (_loaded.contains(tile)) {
@@ -314,12 +370,68 @@ class QueueingTilesetManager<T> extends TilesetManager {
             _loadQueue.remove(tile);
         }
       }
+
+      for (final entry in _markers.entries) {
+        final markerEntity = entry.key;
+        final marker = entry.value;
+
+        final markerCenter = _markerCenters[marker];
+
+        if (markerCenter == null) {
+          continue;
+        }
+
+        bool isVisible = (cameraPosition - marker.position).length <
+            marker.visibilityDistance;
+        await renderer.setEntityVisibility(markerEntity, isVisible);
+
+        if (!isVisible) {
+          continue;
+        }
+
+        if (markerCenter.dirty) {
+          var transform = await renderer.getEntityTransform(markerEntity);
+
+          var position = marker.position
+              .normalized()
+              .scaled(markerCenter.center.length + marker.heightAboveTerrain);
+
+          transform = Matrix4.compose(
+              position, Quaternion.identity(), Vector3.all(1.0));
+
+          await renderer.setEntityTransform(markerEntity, transform);
+
+          _markerCenters[marker] = (
+            tile: markerCenter.tile,
+            distance: markerCenter.distance,
+            center: markerCenter.center,
+            dirty: false
+          );
+        }
+      }
     }
-    for (final marker in _markers.entries) {
-      bool isVisible = (cameraPosition - marker.value.position).length <
-          marker.value.visibilityDistance;
-      await renderer.setEntityVisibility(marker.key, isVisible);
-    }
+
     _updating = false;
+  }
+
+  @override
+  Future removeMarker(RenderableMarker marker) async {
+    // Find the entity associated with this marker
+    T? entityToRemove;
+    for (final entry in _markers.entries) {
+      if (entry.value == marker) {
+        entityToRemove = entry.key;
+        break;
+      }
+    }
+
+    if (entityToRemove != null) {
+      // Remove the marker from renderer
+      await renderer.removeEntity(entityToRemove);
+      // Remove from markers map
+      _markers.remove(entityToRemove);
+      // Remove from marker centers tracking
+      _markerCenters.remove(marker);
+    }
   }
 }

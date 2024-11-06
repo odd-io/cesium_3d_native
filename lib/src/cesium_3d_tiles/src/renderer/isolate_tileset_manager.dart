@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:isolate';
 import 'dart:typed_data';
+import 'package:cesium_3d_tiles/src/cesium_3d_tiles/src/cesium_3d_tile.dart';
 import 'package:cesium_3d_tiles/src/cesium_3d_tiles/src/cesium_3d_tileset.dart';
 import 'package:cesium_3d_tiles/src/cesium_3d_tiles/src/renderer/markers.dart';
 import 'package:cesium_3d_tiles/src/cesium_3d_tiles/src/renderer/queuing_tileset_manager.dart';
@@ -54,6 +55,9 @@ void _isolateEntryPoint(List<dynamic> message) {
           result = await manager.remove(message.args[0] as Cesium3DTileset);
         case 'markDirty':
           manager.markDirty();
+        case 'removeMarker':
+          result =
+              await manager.removeMarker(message.args[0] as RenderableMarker);
         default:
           throw UnimplementedError('Method ${message.method} not implemented');
       }
@@ -189,6 +193,17 @@ class IsolateTilesetManager extends TilesetManager {
   void markDirty() {
     _sendMessage("markDirty");
   }
+
+  @override
+  Future updateMarkers() {
+    // TODO: implement updateMarkers
+    throw UnimplementedError();
+  }
+
+  @override
+  Future removeMarker(RenderableMarker marker) {
+    return _sendMessage('removeMarker', [marker]);
+  }
 }
 
 class _IsolateManagerRequest {
@@ -247,7 +262,7 @@ class _IsolateRenderer extends TilesetRenderer {
   }
 
   @override
-  Future loadGlb(Uint8List glb, Matrix4 transform, Cesium3DTileset layer) {
+  Future loadGlb(Uint8List glb, Matrix4 transform, Cesium3DTile layer) {
     return _sendMessage('loadGlb', [glb, transform, layer]);
   }
 
@@ -305,5 +320,17 @@ class _IsolateRenderer extends TilesetRenderer {
   @override
   Future setDistanceToSurface(double? distance) {
     return _sendMessage('setDistanceToSurface', [distance]);
+  }
+
+  @override
+  Future<Matrix4> getEntityTransform(entity) {
+    // TODO: implement getEntityTransform
+    throw UnimplementedError();
+  }
+
+  @override
+  Future setEntityTransform(entity, Matrix4 transform) {
+    // TODO: implement setEntityTransform
+    throw UnimplementedError();
   }
 }
