@@ -1,12 +1,20 @@
 # Cesium 3D Tiles
 
-A Dart package for working with Cesium 3D Tiles geospatial data.
+⚠️ **WARNING: This package is currently under active development and is not stable. APIs may change significantly between versions. Use at your own risk.** ⚠️
 
-3D Tiles is an open specification for a data format for streaming and rendering 3D geospatial content, published by the [Open Geospatial Consortium (OGC)](https://www.ogc.org/standard/3dtiles/).
+A Dart package for working with 3D Tiles geospatial data.
 
-AGI, a member of the OGC, maintains and publishes Cesium, its own platform implementation of the 3D Tiles standard. This platform includes Cesium Native, a C++ library for working with 3D Tiles (and AGI's cloud-based 3D Tiles service, Cesium Ion). 
+3D Tiles is an open specification for a data format for streaming and rendering 3D geospatial content, published by the [Open Geospatial Consortium (OGC)](https://www.ogc.org/standard/3dtiles/) and used by Cesium, Google and others.
 
 This Dart package is an (unofficial) wrapper around the Cesium Native library, exposing Dart bindings for a small part of the Cesium Native API, and also some higher level Dart components to make it easier to work with Cesium 3D Tiles.
+
+Cesium Native is a set of C++ libraries for 3D geospatial applications that provides:
+
+- 3D Tiles runtime streaming
+- Lightweight glTF serialization and deserialization
+- High-precision 3D geospatial math types and functions, including support for global-scale WGS84 ellipsoids
+
+It serves as the foundational layer for any 3D geospatial software, especially those that want to stream 3D Tiles. Cesium Native powers Cesium's runtime integrations for various platforms including Unreal, Unity - and now Dart/Flutter 🎉
 
 ## Overview
 
@@ -14,11 +22,12 @@ Let's recap with a brief overview of the Cesium 3D Tile format.
 
 A *tileset* is the root of a 3D Tiles dataset, usually a JSON file like `tileset.json`. A tileset describes the overall structure of the 3D content, including metadata, a tree of tiles, and references to the actual 3D data files. *Tiles* are the basic units of 3D Tiles content, each containing a small part of the overall 3D content of the tileset. Tiles are organized in a hierarchical tree structure, allowing for efficient streaming and rendering of large datasets.
 
-Each tile has a bounding volume (i.e. size), transform (i.e global position) and some information about its level of detail. 
+Each tile has a bounding volume (i.e. size), transform (i.e global position) and some information about its level of detail.
 
 Whether or not a tile should be rendered depends on the position of the camera in the global coordinate system; a tile should only be loaded/rendered if they are inside the camera frustum, and low-detail tiles should be replaced with higher-detail tiles as the camera moves closer to the tile.
 
 At a very high-level, working with a 3D Tiles tileset involves:
+
 1) loading a tileset
 2) waiting for the root tile to load
 3) passing in a camera orientation
@@ -30,11 +39,12 @@ At a very high-level, working with a 3D Tiles tileset involves:
 
 (see the section on Rendering below for steps (6) and (7)).
 
-Cesium Native does most of the heavy lifting for the above; this Dart package is mostly a thin wrapper so you can pass in tileset URLs, Cesium Ion asset IDs and camera matrices, and retrieve the list of renderable tiles (and their content). 
+Cesium Native does most of the heavy lifting for the above; this Dart package is mostly a thin wrapper so you can pass in tileset URLs, Cesium Ion asset IDs and camera matrices, and retrieve the list of renderable tiles (and their content).
 
 ### Package structure
 
-This package are divided into three components: 
+This package are divided into three components:
+
 ```
 lib/cesium_3d_tiles
 lib/cesium_ion
@@ -43,11 +53,11 @@ lib/cesium_native
 
 `cesium_3d_tiles` contains a higher-level wrapper around the bindings in `cesium_native`; if you just want to fetch and render tilesets, you should probably start here.
 
-`cesium_native` contains Dart FFI bindings for the Cesium Native library. We have only written bindings for a small portion of the Cesium Native library; the library exposes a lot more functionality that we haven't needed to implement for our own purposes yet. If you need to extend this package to support more functionality from Cesium Native, start here. 
+`cesium_native` contains Dart FFI bindings for the Cesium Native library. We have only written bindings for a small portion of the Cesium Native library; the library exposes a lot more functionality that we haven't needed to implement for our own purposes yet. If you need to extend this package to support more functionality from Cesium Native, start here.
 
 `cesium_ion` contains a standalone Dart implementation for retrieving Cesium Ion assets (i.e. this is totally separate from Cesium Native). This is only intended for internal testing/debugging; you probably don't want or need to use these classes.
 
-The `cesium_native` part of this package lets you work directly (via Dart) with the Cesium Native library. 
+The `cesium_native` part of this package lets you work directly (via Dart) with the Cesium Native library.
 
 However, most users should work directly with the [Cesium3DTileset] provided by the `cesium_3d_tiles` library. This exposes a simpler API surface for working with tilesets (including common associated requirements, like assigning visibility layers for working with multiple tilesets, and interfaces for adding marker object overlays to tilesets).
 
@@ -55,7 +65,7 @@ However, most users should work directly with the [Cesium3DTileset] provided by 
 
 It's also important to note that this package *does not provide any actual rendering capabiility*. The `cesium_native` library doesn't interact directly with a rendering surface - camera parameters go in, and a list of renderable tiles comes out.
 
-The `cesium_3d_tiles` library includes the `TilesetManager` interface, which describes a set of methods that you could use to render a multiple `Cesium3DTileset` instances to a rendering surface. The library also provides an example implementation of `QueuingTilesetManager` that uses a queue to manage/kick tiles, using `cesium_native` to load a tileset and manage tile content. Note that this requires you to implement the `TilesetRenderer` interface to provide an actual implementation of the rendering logic. 
+The `cesium_3d_tiles` library includes the `TilesetManager` interface, which describes a set of methods that you could use to render a multiple `Cesium3DTileset` instances to a rendering surface. The library also provides an example implementation of `QueuingTilesetManager` that uses a queue to manage/kick tiles, using `cesium_native` to load a tileset and manage tile content. Note that this requires you to implement the `TilesetRenderer` interface to provide an actual implementation of the rendering logic.
 
 The intention is that end users create their own apps that depend on `cesium_3d_tiles`, and that extend `TilesetRenderer` to implement the abstract methods with a specific rendering library. You can [click here to see an example Flutter application](https://TODO) that uses the [Thermion](https://thermion.dev) rendering library to implement these abstract methods.
 
@@ -64,6 +74,7 @@ The intention is that end users create their own apps that depend on `cesium_3d_
 ### cesium_3d_tiles
 
 Most end users should start with the [example Flutter project](https://TODO), or running the following:
+
 ```
 export CESIUM_ION_ASSET_ID=YOUR_CESIUM_ION_ASSET_TOKEN
 export CESIUM_ION_ACCESS_TOKEN=YOUR_CESIUM_ION_ASSET_TOKEN
@@ -92,8 +103,7 @@ var renderableTiles = tileset
       .toList();
 ```
 
-> IMPORTANT - the `cesium_3d_tiles` library always expects right-handed gLTF coordinates (i.e Y is up, -Z is into the screen). If your renderer is using a different coordinate system, you will need to transform to this space first. 
-
+> IMPORTANT - the `cesium_3d_tiles` library always expects right-handed gLTF coordinates (i.e Y is up, -Z is into the screen). If your renderer is using a different coordinate system, you will need to transform to this space first.
 
 ```
 print("${renderableTiles.length} renderable tiles");
@@ -139,9 +149,9 @@ dart --enable-experiment=native-assets run example/cesium_native/get_tileset_fro
 
 Note that unlike `cesium_3d_tiles`, `cesium_native` generally returns/expects ECEF coordinates. If you work with this library, you will probably need to handle the transformation between ECEF and your renderer's coordinate system.
 
-## Extending cesium_native 
+## Extending cesium_native
 
-This package ships with pre-compiled static Cesium Native libraries (arm64 only) for iOS, Android and MacOS. 
+This package ships with pre-compiled static Cesium Native libraries (arm64 only) for iOS, Android and MacOS.
 
 When a Dart/Flutter application that depends on this package is run, the `hook/build.dart` file uses Dart's `native-assets` library to:
 
@@ -157,7 +167,7 @@ If you need to (re)build the Cesium Native libraries (e.g. to update the version
 
 1) remove the `include/Cesium*` and `generated/include/Cesium*` directories
 2) run `build.sh`, which will build for all target platforms
-3) copy the headers from the Cesium Native build dir to the `include` and `generated/include` directories 
+3) copy the headers from the Cesium Native build dir to the `include` and `generated/include` directories
 
 On Windows, I needed to manually insert:
 
