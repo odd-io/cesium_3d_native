@@ -53,7 +53,13 @@ void main(List<String> args) async {
         ? Directory("")
         : await getLibDir(config, logger, targetArch);
 
+    final sqliteDir = config.dryRun
+        ? Directory("")
+        : Directory(
+            "${config.packageRoot.toFilePath()}/.dart_tool/cesium_3d_native/sqlite/$_sqliteVersion/${config.targetOS.toString().toLowerCase()}/${targetArch}");
+
     logger.info("Using lib dir : ${libDir.path}");
+    logger.info("Using SQLite dir : ${sqliteDir.path}");
 
     var libs = <String>[];
     var flags = <String>[];
@@ -70,7 +76,13 @@ void main(List<String> args) async {
           includes.map((i) => "/I${config.packageRoot.toFilePath()}/$i"));
       flags.addAll(["/DWIN32=1", "/D_DLL=1", "/DRELEASE"]);
       flags.addAll(sources);
-      flags.addAll(['/link', "/LIBPATH:${libDir.path}", "/DLL"]);
+      flags.addAll([
+        '/link',
+        "/LIBPATH:${libDir.path}", // Cesium libs
+        "/LIBPATH:${sqliteDir.path}", // SQLite libs
+        "sqlite3.lib",
+        "/DLL"
+      ]);
       sources.clear();
       includes.clear();
     } else {
@@ -88,11 +100,13 @@ void main(List<String> args) async {
       flags.addAll([
         "--std=c++17",
         "-L${libDir.path}",
+        "-L${sqliteDir.path}",
         "-fPIC",
         "-lcurl",
         "-lssl",
         "-lcrypto",
         "-lz",
+        "-lsqlite3",
         if (config.targetOS == OS.android) ...[
           "-landroid",
           "-lidn2",
@@ -130,10 +144,10 @@ void main(List<String> args) async {
       logger: logger,
     );
 
-    // this conflicts with other Dart packages that ship libc++_shared.so (e.g. 
-    // Thermion). I've commented out rather than deleted in case we want to 
-    // reintroduce in future - if building without a package that ships 
-    // libc++_shared.so, I think the straightforward option will be to 
+    // this conflicts with other Dart packages that ship libc++_shared.so (e.g.
+    // Thermion). I've commented out rather than deleted in case we want to
+    // reintroduce in future - if building without a package that ships
+    // libc++_shared.so, I think the straightforward option will be to
     // add to Android's jniLibs for the app.
 
     // if (config.targetOS == OS.android && !config.dryRun) {
@@ -163,7 +177,7 @@ void main(List<String> args) async {
     //     stlPath =
     //         File(stlPath.path.replaceAll("arm64-v8a", "aarch64-linux-android"));
     //   }
-      
+
     //   output.addAsset(NativeCodeAsset(
     //       package: packageName,
     //       name: "libc++_shared.so",
@@ -176,9 +190,26 @@ void main(List<String> args) async {
 }
 
 const _cesiumNativeVersion = "v0.39.0";
+const _sqliteVersion = "3470000";
 
 String _getLibraryUrl(String platform, String mode, String arch) {
   return "https://pub-b19d1b9d30844d689622bf750da1df69.r2.dev/cesium-native-$_cesiumNativeVersion-$platform-$arch-$mode.zip";
+}
+
+String _getSqliteUrl(String platform) {
+  switch (platform) {
+    case "windows":
+      return "https://sqlite.org/2024/sqlite-dll-win-x64-$_sqliteVersion.zip";
+    case "android":
+      return "https://sqlite.org/2024/sqlite-android-$_sqliteVersion.zip";
+    case "linux":
+      return "https://www.sqlite.org/2024/sqlite-tools-linux-x64-$_sqliteVersion.zip";
+    case "macos":
+    case "ios":
+      return "https://www.sqlite.org/2024/sqlite-tools-osx-x64-$_sqliteVersion.zip";
+    default:
+      throw Exception("Unsupported platform for SQLite: $platform");
+  }
 }
 
 //
@@ -241,5 +272,56 @@ Future<Directory> getLibDir(
     }
     successToken.writeAsStringSync("SUCCESS");
   }
+
+  final sqliteDir = Directory(
+      "${config.packageRoot.toFilePath()}/.dart_tool/cesium_3d_native/sqlite/$_sqliteVersion/$platform/${targetArch}");
+  await _downloadAndExtractSqlite(sqliteDir, _getSqliteUrl(platform), logger);
+
   return libDir;
+}
+
+Future<void> _downloadAndExtractSqlite(
+    Directory targetDir, String url, Logger logger) async {
+  final filename = url.split("/").last;
+  final unzipDir = targetDir.path;
+  final successToken = File("$unzipDir/success");
+  final archiveFile = File("$unzipDir/$filename");
+
+  if (!successToken.existsSync()) {
+    if (!archiveFile.parent.existsSync()) {
+      archiveFile.parent.createSync(recursive: true);
+    }
+
+    logger.info("Downloading SQLite from $url");
+    final request = await HttpClient().getUrl(Uri.parse(url));
+    final response = await request.close();
+    await response.pipe(archiveFile.openWrite());
+
+    // Extract based on file type
+    if (filename.endsWith('.zip')) {
+      final archive = ZipDecoder().decodeBytes(await archiveFile.readAsBytes());
+      for (final file in archive) {
+        if (file.isFile) {
+          final f = File('${unzipDir}/${file.name}');
+          await f.create(recursive: true);
+          await f.writeAsBytes(file.content as List<int>);
+        }
+      }
+    } else if (filename.endsWith('.tar.gz')) {
+      // Handle .tar.gz files
+      final gzipBytes = await archiveFile.readAsBytes();
+      final tarBytes = GZipDecoder().decodeBytes(gzipBytes);
+      final archive = TarDecoder().decodeBytes(tarBytes);
+
+      for (final file in archive) {
+        if (file.isFile) {
+          final f = File('${unzipDir}/${file.name}');
+          await f.create(recursive: true);
+          await f.writeAsBytes(file.content as List<int>);
+        }
+      }
+    }
+
+    successToken.writeAsStringSync("SUCCESS");
+  }
 }
