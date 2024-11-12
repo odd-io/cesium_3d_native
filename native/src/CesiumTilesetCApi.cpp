@@ -32,6 +32,8 @@
 #include <Cesium3DTilesSelection/TilesetExternals.h>
 #include <CesiumAsync/IAssetAccessor.h>
 #include <CesiumAsync/AsyncSystem.h>
+#include <CesiumAsync/CachingAssetAccessor.h>
+#include <CesiumAsync/SqliteCache.h>
 #include <Cesium3DTilesContent/registerAllTileContentTypes.h>
 #include <Cesium3DTilesSelection/BoundingVolume.h>
 #include <CesiumGeometry/BoundingSphere.h>
@@ -129,39 +131,54 @@ double3 glmTodouble3(const glm::dvec3& vec) {
 static CesiumAsync::AsyncSystem asyncSystem { nullptr };
 static std::shared_ptr<Cesium3DTilesSelection::IPrepareRendererResources> pResourcePreparer;
 static std::shared_ptr<CesiumAsync::IAssetAccessor> pAssetAccessor;
+static std::shared_ptr<CesiumAsync::ICacheDatabase> pCacheDatabase;
 static std::shared_ptr<CesiumUtility::CreditSystem> pMockedCreditSystem;
 static std::thread *main;
 API_EXPORT void CesiumTileset_initialize(uint32_t numThreads) {
     if(pResourcePreparer) {
         return;
     }
-    
-    asyncSystem = CesiumAsync::AsyncSystem {  std::make_shared<SimpleTaskProcessor>(numThreads) };
-    // #ifndef _WIN32
-    pAssetAccessor = std::dynamic_pointer_cast<CesiumAsync::IAssetAccessor>(std::make_shared<CurlAssetAccessor>());
-    // #else
-    // pAssetAccessor = std::dynamic_pointer_cast<CesiumAsync::IAssetAccessor>(std::make_shared<HttplibAssetAccessor>());
-    // #endif
-    pMockedCreditSystem = std::make_shared<CesiumUtility::CreditSystem>();
-    pResourcePreparer = std::dynamic_pointer_cast<Cesium3DTilesSelection::IPrepareRendererResources>(std::make_shared<SimplePrepareRendererResource>());
 
     #ifdef __ANDROID__
     auto console = spdlog::android_logger_mt("cesium_logger", "cesium_native");
     #else
     auto console = spdlog::stdout_color_mt("cesium_logger");
     #endif
+
     spdlog::set_default_logger(console);
-
-    // Set the log level (optional)
+    // TODO: make this a user-configurable
     spdlog::set_level(spdlog::level::info); // Or info, warn, error, etc.
-
-    // Enable backtrace logging (optional)
     spdlog::enable_backtrace(32); // Keep a backtrace of 32 messages
+    
+    pAssetAccessor = std::make_shared<CurlAssetAccessor>();
+    //TODO: make this a user-configurable path
+    std::string cacheDbPath = "cesium_tile_cache.db";
+    pCacheDatabase = std::make_shared<CesiumAsync::SqliteCache>(
+        spdlog::default_logger(),
+        cacheDbPath,
+        4096
+    );
+    if (pCacheDatabase) {
+        spdlog::default_logger()->info("SQLite cache created successfully");
+    } else {
+        spdlog::default_logger()->error("Failed to create SQLite cache");
+    }
+    pAssetAccessor = std::make_shared<CesiumAsync::CachingAssetAccessor>(
+        spdlog::default_logger(),
+        pAssetAccessor,
+        pCacheDatabase,
+        10000
+    );
+    spdlog::default_logger()->info("CachingAssetAccessor created with database: {}", cacheDbPath);
+    
+    asyncSystem = CesiumAsync::AsyncSystem {  std::make_shared<SimpleTaskProcessor>(numThreads) };
+
+    pMockedCreditSystem = std::make_shared<CesiumUtility::CreditSystem>();
+    pResourcePreparer = std::dynamic_pointer_cast<Cesium3DTilesSelection::IPrepareRendererResources>(std::make_shared<SimplePrepareRendererResource>());
     
     Cesium3DTilesContent::registerAllTileContentTypes();
     
     spdlog::default_logger()->info("Cesium Native bindings initialized ({} threads)", numThreads);
-
 }
 
 CesiumTileset* CesiumTileset_create(const char* url, CesiumTilesetOptions cesiumTilesetOptions, void(*onRootTileAvailableEvent)()) {

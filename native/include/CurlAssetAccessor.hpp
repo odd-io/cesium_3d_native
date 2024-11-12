@@ -15,8 +15,13 @@ using namespace Cesium3DTilesSelection;
 
 class CurlAssetResponse : public CesiumAsync::IAssetResponse {
 public:
-    CurlAssetResponse(long statusCode, const std::string& contentType, const std::vector<uint8_t>& data)
-        : _statusCode(statusCode), _contentType(contentType), _data(data) {}
+    CurlAssetResponse(long statusCode, const std::string& contentType, const std::vector<uint8_t>& data, const CesiumAsync::HttpHeaders& headers)
+        : _statusCode(statusCode), _contentType(contentType), _data(data), _headers(headers) {
+        // spdlog::debug("CurlAssetResponse headers:");
+        // for (const auto& [key, value] : _headers) {
+        //     spdlog::debug("  {}: {}", key, value);
+        // }
+    }
 
     virtual uint16_t statusCode() const override { return static_cast<uint16_t>(_statusCode); }
     virtual const CesiumAsync::HttpHeaders& headers() const override { return _headers; }
@@ -26,7 +31,6 @@ public:
     virtual std::string contentType() const override {
         return _contentType;
     }
-
 
 private:
     long _statusCode;
@@ -85,18 +89,22 @@ public:
         const gsl::span<const std::byte>& contentPayload = {}) override {
        
         return asyncSystem.runInWorkerThread([this, verb, url, headers, contentPayload]() {
-            auto startTime = std::chrono::high_resolution_clock::now();
-            // spdlog::info("Starting {} request to: {}", verb, url);
-
+            // spdlog::debug("Starting {} request to: {}", verb, url);
+            
             auto request = std::make_shared<CurlAssetRequest>(verb, url, CesiumAsync::HttpHeaders(headers.begin(), headers.end()));
             
             CURL* curl = curl_easy_init();
             if (!curl) {
                 throw std::runtime_error("Failed to initialize CURL");
             }
+
+            // Set up response headers collection before the request
+            CesiumAsync::HttpHeaders responseHeaders;
+            curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, HeaderCallback);
+            curl_easy_setopt(curl, CURLOPT_HEADERDATA, &responseHeaders);
             
+            // Basic CURL setup
             curl_easy_setopt(curl, CURLOPT_FRESH_CONNECT, 0L);
-            // curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
             curl_easy_setopt(curl, CURLOPT_SSL_SESSIONID_CACHE, 1L);
             curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
             curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
@@ -109,81 +117,79 @@ public:
             curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, verb.c_str());
             curl_easy_setopt(curl, CURLOPT_ACCEPT_ENCODING, "");
 
+            // Prepare request headers
             struct curl_slist* chunk = nullptr;
+            
+            // Add cache control headers if not present in the original request
+            bool hasCacheControl = false;
             for (const auto& header : headers) {
                 std::string headerStr = header.first + ": " + header.second;
                 chunk = curl_slist_append(chunk, headerStr.c_str());
+                spdlog::debug("Request header: {}", headerStr);
+                
+                if (header.first == "Cache-Control") {
+                    hasCacheControl = true;
+                }
+            }
+
+            if (!hasCacheControl) {
+                // default is 1 hour
+                const char* cacheControl = "Cache-Control: max-age=3600";
+                chunk = curl_slist_append(chunk, cacheControl);
+                spdlog::debug("Added default {}", cacheControl);
             }
 
             chunk = curl_slist_append(chunk, "Accept-Encoding: gzip, deflate");
-
             curl_easy_setopt(curl, CURLOPT_HTTPHEADER, chunk);
 
-            if (!contentPayload.empty()) {
-                curl_easy_setopt(curl, CURLOPT_POSTFIELDS, contentPayload.data());
-                curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, contentPayload.size());
-            }
-
+            // Set up response data collection
             std::vector<uint8_t> responseData;
-            char errbuf[CURL_ERROR_SIZE];
-            curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errbuf);
             curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
             curl_easy_setopt(curl, CURLOPT_WRITEDATA, &responseData);
-            
-            // Get timing information
-            double totalTime, nameLookupTime, connectTime, appConnectTime, preTransferTime, startTransferTime;
-            
+
+            // Execute request
             CURLcode res = curl_easy_perform(curl);
-
-            auto endTime = std::chrono::high_resolution_clock::now();
-            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
-
-            // Get detailed timing information from CURL
-            curl_easy_getinfo(curl, CURLINFO_TOTAL_TIME, &totalTime);
-            curl_easy_getinfo(curl, CURLINFO_NAMELOOKUP_TIME, &nameLookupTime);
-            curl_easy_getinfo(curl, CURLINFO_CONNECT_TIME, &connectTime);
-            curl_easy_getinfo(curl, CURLINFO_APPCONNECT_TIME, &appConnectTime);
-            curl_easy_getinfo(curl, CURLINFO_PRETRANSFER_TIME, &preTransferTime);
-            curl_easy_getinfo(curl, CURLINFO_STARTTRANSFER_TIME, &startTransferTime);
-
+            
             if (res != CURLE_OK) {
-                spdlog::default_logger()->error("CURL Failed! Error: {}", curl_easy_strerror(res));
-                spdlog::default_logger()->error("Response body: {}", std::string(responseData.begin(), responseData.end()));
-                spdlog::default_logger()->error("{}", errbuf);
-
+                spdlog::error("CURL request failed: {}", curl_easy_strerror(res));
                 curl_easy_cleanup(curl);
                 curl_slist_free_all(chunk);
                 throw std::runtime_error(curl_easy_strerror(res));
             }
 
+            // Get response info
             long statusCode;
             curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &statusCode);
 
             char* contentType;
             curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE, &contentType);
 
-            // Log timing information
-            // spdlog::default_logger()->info("Request completed: {} {}", verb, url);
-            // spdlog::default_logger()->info("Status: {}", statusCode);
-            // spdlog::default_logger()->info("Total time: {:.2f} ms", duration.count());
-            // spdlog::default_logger()->info("CURL Timing breakdown:");
-            // spdlog::default_logger()->info("  DNS lookup:    {:.2f} ms", nameLookupTime * 1000);
-            // spdlog::default_logger()->info("  TCP connect:   {:.2f} ms", (connectTime - nameLookupTime) * 1000);
-            // spdlog::default_logger()->info("  SSL handshake: {:.2f} ms", (appConnectTime - connectTime) * 1000);
-            // spdlog::default_logger()->info("  Pre-transfer:  {:.2f} ms", (preTransferTime - appConnectTime) * 1000);
-            // spdlog::default_logger()->info("  Transfer:      {:.2f} ms", (totalTime - startTransferTime) * 1000);
-            // spdlog::default_logger()->info("Response size: {} bytes", responseData.size());
+            // Add Expires header if not present in response
+            if (responseHeaders.find("Expires") == responseHeaders.end()) {
+                std::time_t now = std::time(nullptr);
+                // default is 1 hour like in the generated cache-control header
+                std::time_t expires = now + 3600;
+                char expiresStr[100];
+                std::strftime(expiresStr, sizeof(expiresStr), "%a, %d %b %Y %H:%M:%S GMT", std::gmtime(&expires));
+                responseHeaders["Expires"] = expiresStr;
+                // spdlog::debug("Added Expires header: {}", expiresStr);
+            }
 
-            auto response = std::make_unique<CurlAssetResponse>(statusCode, contentType ? contentType : "", responseData);
+            auto response = std::make_unique<CurlAssetResponse>(
+                statusCode,
+                contentType ? contentType : "",
+                responseData,
+                responseHeaders
+            );
             request->setResponse(std::move(response));
 
             curl_easy_cleanup(curl);
             curl_slist_free_all(chunk);
 
+            // spdlog::debug("Request completed: {} {} (status: {})", verb, url, statusCode);
             return (std::shared_ptr<CesiumAsync::IAssetRequest>)request;
         });
     }
-
 
     void tick() noexcept override {}
 
@@ -197,5 +203,30 @@ private:
         buffer.resize(currentSize + realsize);
         std::memcpy(buffer.data() + currentSize, contents, realsize);
         return realsize;
+    }
+
+    static size_t HeaderCallback(char* buffer, size_t size, size_t nitems, void* userdata) {
+        size_t totalSize = size * nitems;
+        std::string header(buffer, totalSize);
+        auto* headers = static_cast<CesiumAsync::HttpHeaders*>(userdata);
+        
+        // Find the colon separator
+        size_t colonPos = header.find(':');
+        if (colonPos != std::string::npos) {
+            std::string key = header.substr(0, colonPos);
+            std::string value = header.substr(colonPos + 1);
+            
+            // Trim whitespace
+            key.erase(0, key.find_first_not_of(" \t\r\n"));
+            key.erase(key.find_last_not_of(" \t\r\n") + 1);
+            value.erase(0, value.find_first_not_of(" \t\r\n"));
+            value.erase(value.find_last_not_of(" \t\r\n") + 1);
+            
+            if (!key.empty()) {
+                (*headers)[key] = value;
+            }
+        }
+        
+        return totalSize;
     }
 };
