@@ -822,38 +822,64 @@ void CesiumGltfModel_serializeAsync(CesiumGltfModel* opaqueModel, void(*callback
 
 SerializedCesiumGltfModel CesiumGltfModel_serialize(CesiumGltfModel* opaqueModel) {
     CesiumGltfWriter::GltfWriter writer;
-
     auto model = reinterpret_cast<CesiumGltf::Model*>(opaqueModel);
     
     // The glb format only permits a single BIN chunk.
     // We therefore need to concatenate all buffer data and update the bufferView so that:
     // - the buffer index always points to zero
     // - the offset is now relative to the start of this buffer
+    // - each buffer is aligned on 4-byte boundaries
     std::vector<int64_t> offsets;
     int64_t offset = 0;
     std::vector<std::byte> bufferData;
+    int64_t totalByteLength = 0;
+
     for (CesiumGltf::Buffer& buffer : model->buffers) {
         if(buffer.uri) {
             spdlog::default_logger()->error(buffer.uri.value());
             spdlog::default_logger()->flush();
             exit(-1);
         }
+
+        // Calculate padding needed for 4-byte alignment
+        int64_t padding = (4 - (offset % 4)) % 4;
+        offset += padding;
+        
+        // Add padding bytes if needed
+        while (padding-- > 0) {
+            bufferData.push_back(std::byte{0});
+            totalByteLength++;
+        }
+
         offsets.push_back(offset);
         offset += buffer.byteLength;
+        
+        // Insert the actual buffer data
         bufferData.insert(bufferData.end(), buffer.cesium.data.begin(), buffer.cesium.data.end());
+        totalByteLength += buffer.byteLength;
     }
+    
+    // Ensure final size is also 4-byte aligned
+    int64_t finalPadding = (4 - (totalByteLength % 4)) % 4;
+    while (finalPadding-- > 0) {
+        bufferData.push_back(std::byte{0});
+        totalByteLength++;
+    }
+    
+    model->buffers.resize(1);
+    model->buffers[0].byteLength = totalByteLength;
+    model->buffers[0].cesium.data = bufferData;
 
     for (CesiumGltf::BufferView& bufferView : model->bufferViews) {
         int offset = offsets[bufferView.buffer];
         bufferView.byteOffset += offset;
-        bufferView.buffer = 0;
+        bufferView.buffer = 0;        
     }
-
+  
     CesiumGltfWriter::GltfWriterOptions options;
     options.binaryChunkByteAlignment = 4;  
     options.prettyPrint = false;
     
-    // since we've stored all buffer data in the URI property, we don't need to store the 
     auto result = writer.writeGlb(*model, gsl::span<const std::byte>(bufferData), options);
 
     for(auto& err : result.errors) { 
