@@ -164,7 +164,7 @@ typedef struct SerializedCesiumGltfModel SerializedCesiumGltfModel;
 // Initializes all bindings. Must be called before any other CesiumTileset_ function.
 // numThreads refers to the number of threads that will be created for the Async system (job queue).
 //
-API_EXPORT void CesiumTileset_initialize(uint32_t numThreads);
+API_EXPORT void CesiumTileset_initialize(uint32_t numThreads, const char* cacheDbPath);
 
 API_EXPORT void CesiumTileset_pumpAsyncQueue();
 

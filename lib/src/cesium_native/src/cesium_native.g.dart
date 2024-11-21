@@ -7,9 +7,10 @@ library;
 
 import 'dart:ffi' as ffi;
 
-@ffi.Native<ffi.Void Function(ffi.Uint32)>()
+@ffi.Native<ffi.Void Function(ffi.Uint32, ffi.Pointer<ffi.Char>)>()
 external void CesiumTileset_initialize(
   int numThreads,
+  ffi.Pointer<ffi.Char> cacheDbPath,
 );
 
 @ffi.Native<ffi.Void Function()>()

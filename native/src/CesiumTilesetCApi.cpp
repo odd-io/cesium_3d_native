@@ -134,7 +134,7 @@ static std::shared_ptr<CesiumAsync::IAssetAccessor> pAssetAccessor;
 static std::shared_ptr<CesiumAsync::ICacheDatabase> pCacheDatabase;
 static std::shared_ptr<CesiumUtility::CreditSystem> pMockedCreditSystem;
 static std::thread *main;
-API_EXPORT void CesiumTileset_initialize(uint32_t numThreads) {
+API_EXPORT void CesiumTileset_initialize(uint32_t numThreads, const char* cacheDbPath) {
     if(pResourcePreparer) {
         return;
     }
@@ -151,25 +151,29 @@ API_EXPORT void CesiumTileset_initialize(uint32_t numThreads) {
     spdlog::enable_backtrace(32); // Keep a backtrace of 32 messages
     
     pAssetAccessor = std::make_shared<CurlAssetAccessor>();
-    //TODO: make this a user-configurable path
-    std::string cacheDbPath = "cesium_tile_cache.db";
-    pCacheDatabase = std::make_shared<CesiumAsync::SqliteCache>(
-        spdlog::default_logger(),
-        cacheDbPath,
-        4096
-    );
-    if (pCacheDatabase) {
-        spdlog::default_logger()->info("SQLite cache created successfully");
+    
+    // Only create caching if a valid path is provided
+    if (cacheDbPath && strlen(cacheDbPath) > 0) {
+        pCacheDatabase = std::make_shared<CesiumAsync::SqliteCache>(
+            spdlog::default_logger(),
+            cacheDbPath,
+            4096
+        );
+        if (pCacheDatabase) {
+            spdlog::default_logger()->info("SQLite cache created successfully at: {}", cacheDbPath);
+            pAssetAccessor = std::make_shared<CesiumAsync::CachingAssetAccessor>(
+                spdlog::default_logger(),
+                pAssetAccessor,
+                pCacheDatabase,
+                10000
+            );
+            spdlog::default_logger()->info("CachingAssetAccessor created with database: {}", cacheDbPath);
+        } else {
+            spdlog::default_logger()->error("Failed to create SQLite cache at: {}", cacheDbPath);
+        }
     } else {
-        spdlog::default_logger()->error("Failed to create SQLite cache");
+        spdlog::default_logger()->info("No cache path provided, running without tile caching");
     }
-    pAssetAccessor = std::make_shared<CesiumAsync::CachingAssetAccessor>(
-        spdlog::default_logger(),
-        pAssetAccessor,
-        pCacheDatabase,
-        10000
-    );
-    spdlog::default_logger()->info("CachingAssetAccessor created with database: {}", cacheDbPath);
     
     asyncSystem = CesiumAsync::AsyncSystem {  std::make_shared<SimpleTaskProcessor>(numThreads) };
 

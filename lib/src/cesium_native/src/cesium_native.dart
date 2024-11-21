@@ -14,6 +14,7 @@ import 'package:logging/logging.dart';
 import 'package:vector_math/vector_math_64.dart';
 
 import 'cesium_tile_selection_state.dart';
+import 'cesium_native_options.dart';
 
 class CesiumTileset {
   final Pointer<g.CesiumTileset> _ptr;
@@ -66,8 +67,30 @@ class CesiumNative {
   }
 
   CesiumNative._() {
-    g.CesiumTileset_initialize(16);
     _errorMessage = calloc<Char>(256);
+  }
+
+  static bool _initialized = false;
+
+  static void initialize([CesiumNativeOptions? options]) {
+    if (_initialized) return;
+
+    final opts = options ?? const CesiumNativeOptions();
+
+    final cachePathPtr =
+        opts.cacheDbPath != null && opts.cacheDbPath!.isNotEmpty
+            ? opts.cacheDbPath!.toNativeUtf8().cast<Char>()
+            : nullptr;
+
+    try {
+      g.CesiumTileset_initialize(opts.numThreads, cachePathPtr);
+      _initialized = true;
+      _errorMessage = calloc<Char>(256);
+    } finally {
+      if (cachePathPtr != nullptr) {
+        calloc.free(cachePathPtr.cast<Utf8>());
+      }
+    }
   }
 
   ///
