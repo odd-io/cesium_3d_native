@@ -201,7 +201,7 @@ String _getSqliteUrl(String platform) {
     case "windows":
       return "https://sqlite.org/2024/sqlite-dll-win-x64-$_sqliteVersion.zip";
     case "android":
-      return "https://sqlite.org/2024/sqlite-android-$_sqliteVersion.zip";
+      return "https://sqlite.org/2024/sqlite-android-$_sqliteVersion.aar";
     case "linux":
       return "https://www.sqlite.org/2024/sqlite-tools-linux-x64-$_sqliteVersion.zip";
     case "macos":
