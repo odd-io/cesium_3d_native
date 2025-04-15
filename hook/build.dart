@@ -1,13 +1,14 @@
 import 'dart:io';
 import 'package:logging/logging.dart';
+import 'package:native_assets_cli/code_assets_builder.dart';
 import 'package:native_assets_cli/native_assets_cli.dart';
 import 'package:native_toolchain_c/native_toolchain_c.dart';
 import 'package:path/path.dart' as p;
 import 'package:archive/archive.dart';
 
-Logger _prepareLogger(BuildConfig config) {
+Logger _prepareLogger(Uri packageRoot) {
   var logDir = Directory(
-      "${config.packageRoot.toFilePath()}.dart_tool/cesium_3d_native/log/");
+      "${packageRoot.toFilePath()}.dart_tool/cesium_3d_native/log/");
   if (!logDir.existsSync()) {
     logDir.createSync(recursive: true);
   }
@@ -23,12 +24,16 @@ Logger _prepareLogger(BuildConfig config) {
 }
 
 void main(List<String> args) async {
-  await build(args, (config, output) async {
-    final logger = _prepareLogger(config);
+  await build(args, (BuildInput input, BuildOutputBuilder output) async {
+    final config = input.config;
+    final packageRoot = input.packageRoot;
+    final targetOS = config.code.targetOS;
+    final targetArchitecture = config.code.targetArchitecture;
+    final logger = _prepareLogger(packageRoot);
 
-    final packageName = config.packageName;
+    final packageName = input.packageName;
 
-    final sources = Directory("${config.packageRoot.toFilePath()}/native/src")
+    final sources = Directory("${packageRoot.toFilePath()}/native/src")
         .listSync(recursive: true)
         .whereType<File>()
         .where((x) => x.path.endsWith(".cpp"))
@@ -37,8 +42,8 @@ void main(List<String> args) async {
 
     String targetArch;
 
-    if (config.targetOS == OS.android) {
-      targetArch = switch (config.targetArchitecture) {
+    if (targetOS == OS.android) {
+      targetArch = switch (targetArchitecture) {
         Architecture.arm => "armeabi-v7a",
         Architecture.arm64 => "arm64-v8a",
         Architecture.x64 => "x86_64",
@@ -46,17 +51,13 @@ void main(List<String> args) async {
         _ => "arm64-v8a"
       };
     } else {
-      targetArch = config.targetArchitecture?.toString() ?? "arm64";
+      targetArch = targetArchitecture?.toString() ?? "arm64";
     }
 
-    final libDir = config.dryRun
-        ? Directory("")
-        : await getLibDir(config, logger, targetArch);
+    final libDir = await getLibDir(packageRoot, targetOS, logger, targetArch);
 
-    final sqliteDir = config.dryRun
-        ? Directory("")
-        : Directory(
-            "${config.packageRoot.toFilePath()}/.dart_tool/cesium_3d_native/sqlite/$_sqliteVersion/${config.targetOS.toString().toLowerCase()}/${targetArch}");
+    final sqliteDir = Directory(
+            "${packageRoot.toFilePath()}/.dart_tool/cesium_3d_native/sqlite/$_sqliteVersion/${targetOS.toString().toLowerCase()}/${targetArch}");
 
     logger.info("Using lib dir : ${libDir.path}");
     logger.info("Using SQLite dir : ${sqliteDir.path}");
@@ -70,10 +71,10 @@ void main(List<String> args) async {
     ];
 
     /// Windows
-    if (config.targetOS == OS.windows) {
+    if (targetOS == OS.windows) {
       flags.addAll(["/std:c++17", "/MD", "/EHsc"]);
       flags.addAll(
-          includes.map((i) => "/I${config.packageRoot.toFilePath()}/$i"));
+          includes.map((i) => "/I${packageRoot.toFilePath()}/$i"));
       flags.addAll(["/DWIN32=1", "/D_DLL=1", "/DRELEASE"]);
       flags.addAll(sources);
       flags.addAll([
@@ -107,20 +108,20 @@ void main(List<String> args) async {
         "-lcrypto",
         "-lz",
         "-lsqlite3",
-        if (config.targetOS == OS.android) ...[
+        if (targetOS == OS.android) ...[
           "-landroid",
           "-lidn2",
           "-lunistring",
           "-liconv"
         ],
         ...libs,
-        if (config.targetOS == OS.iOS || config.targetOS == OS.macOS) ...[
+        if (targetOS == OS.iOS || targetOS == OS.macOS) ...[
           "-framework",
           "CoreFoundation",
           "-framework",
           "SystemConfiguration"
         ],
-        if (config.targetOS == OS.iOS) ...[
+        if (targetOS == OS.iOS) ...[
           '-mios-version-min=13.0',
           '-framework',
           'Security'
@@ -139,8 +140,8 @@ void main(List<String> args) async {
     );
 
     await cbuilder.run(
-      buildConfig: config,
-      buildOutput: output,
+      input: input,
+      output: output,
       logger: logger,
     );
 
@@ -150,7 +151,7 @@ void main(List<String> args) async {
     // libc++_shared.so, I think the straightforward option will be to
     // add to Android's jniLibs for the app.
 
-    // if (config.targetOS == OS.android && !config.dryRun) {
+    // if (targetOS == OS.android && !config.dryRun) {
     //   var compilerPath = config.cCompiler.compiler!.path;
 
     //   if (Platform.isWindows && compilerPath.startsWith("/")) {
@@ -182,9 +183,9 @@ void main(List<String> args) async {
     //       package: packageName,
     //       name: "libc++_shared.so",
     //       linkMode: LookupInProcess(),
-    //       os: config.targetOS,
+    //       os: targetOS,
     //       // file: stlPath.uri,
-    //       architecture: config.targetArchitecture));
+    //       architecture: targetArchitecture));
     // }
   });
 }
@@ -216,13 +217,13 @@ String _getSqliteUrl(String platform) {
 // Download precompiled Cesium Native libraries for the target platform from Cloudflare.
 //
 Future<Directory> getLibDir(
-    BuildConfig config, Logger logger, String targetArch) async {
-  var platform = config.targetOS.toString().toLowerCase();
+    Uri packageRoot, OS targetOS, Logger logger, String targetArch) async {
+  var platform = targetOS.toString().toLowerCase();
 
   var mode = "release";
 
   var libDir = Directory(
-      "${config.packageRoot.toFilePath()}/.dart_tool/cesium_3d_native/lib/$_cesiumNativeVersion/$platform/$mode/${targetArch}");
+      "${packageRoot.toFilePath()}/.dart_tool/cesium_3d_native/lib/$_cesiumNativeVersion/$platform/$mode/${targetArch}");
 
   final url = _getLibraryUrl(platform, mode, targetArch);
 
@@ -274,7 +275,7 @@ Future<Directory> getLibDir(
   }
 
   final sqliteDir = Directory(
-      "${config.packageRoot.toFilePath()}/.dart_tool/cesium_3d_native/sqlite/$_sqliteVersion/$platform/${targetArch}");
+      "${packageRoot.toFilePath()}/.dart_tool/cesium_3d_native/sqlite/$_sqliteVersion/$platform/${targetArch}");
   await _downloadAndExtractSqlite(sqliteDir, _getSqliteUrl(platform), logger);
 
   return libDir;
