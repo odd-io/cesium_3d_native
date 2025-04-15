@@ -156,8 +156,8 @@ class IsolateTilesetManager extends TilesetManager {
   }
 
   @override
-  void addLayer(Cesium3DTileset layer) {
-    _sendMessage('addLayer', [layer]);
+  Future addLayer(Cesium3DTileset layer) async {
+    await _sendMessage('addLayer', [layer]);
   }
 
   @override

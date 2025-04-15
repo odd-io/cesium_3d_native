@@ -18,7 +18,7 @@ abstract class TilesetManager {
   /// Adds a [Cesium3DTileset] to be rendered by this renderer.
   ///
   /// @param layer The layer to be added.
-  void addLayer(Cesium3DTileset layer);
+  Future addLayer(Cesium3DTileset layer);
 
   /// Adds a marker to the rendered scene.
   ///

@@ -176,12 +176,12 @@ class QueueingTilesetManager<T> extends TilesetManager {
   ///
   /// @param layer The layer to be added.
   @override
-  void addLayer(Cesium3DTileset layer) async {
+  Future addLayer(Cesium3DTileset layer) async {
     if (_layers.containsKey(layer)) {
       throw Exception("Layer has already been added");
     }
     _layers[layer] = <CesiumTile>{};
-    renderer.setLayerVisibility(layer.renderLayer, true);
+    await renderer.setLayerVisibility(layer.renderLayer, true);
     _renderable[layer] = <Cesium3DTile>{};
   }
 
