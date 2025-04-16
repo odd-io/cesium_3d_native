@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:math';
 
+import 'package:cesium_3d_tiles/cesium_3d_tiles.dart';
 import 'package:cesium_3d_tiles/src/cesium_native/cesium_native.dart';
 import 'package:vector_math/vector_math_64.dart';
 
@@ -15,13 +16,16 @@ void main(List<String> args) async {
     exit(-1);
   }
 
+  CesiumNative.initialize();
+
   // get the Cesium Ion asset ID and access token from the command line arguments
   final assetId = int.parse(args[0]);
   final accessToken = args[1];
 
   // load the tileset from the Cesium Ion asset ID
+  const tilesetOptions = TilesetOptions();
   var tileset =
-      await CesiumNative.instance.loadFromCesiumIon(assetId, accessToken);
+      await CesiumNative.instance.loadFromCesiumIon(assetId, accessToken, tilesetOptions);
 
   // create a random camera view for testing purposes
   var view = CesiumView(Vector3(0, 0, 1000), Vector3(0, 0, -1),
