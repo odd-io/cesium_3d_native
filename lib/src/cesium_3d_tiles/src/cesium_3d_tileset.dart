@@ -86,6 +86,9 @@ class Cesium3DTileset {
   static Future<Cesium3DTileset> fromCesiumIon(int assetId, String accessToken,
       {TilesetOptions tilesetOptions = const TilesetOptions(),
       RenderLayer renderLayer = RenderLayer.layer0}) async {
+    if (accessToken.isEmpty) {
+      throw Exception("No access token provided");
+    }
     var tileset = await CesiumNative.instance
         .loadFromCesiumIon(assetId, accessToken, tilesetOptions);
     return Cesium3DTileset._(tileset, renderLayer, debugName: "ion:$assetId");
