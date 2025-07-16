@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:logging/logging.dart';
-import 'package:native_assets_cli/code_assets_builder.dart';
-import 'package:native_assets_cli/native_assets_cli.dart';
+import 'package:code_assets/code_assets.dart';
+import 'package:hooks/hooks.dart';
 import 'package:native_toolchain_c/native_toolchain_c.dart';
 import 'package:path/path.dart' as p;
 import 'package:archive/archive.dart';
