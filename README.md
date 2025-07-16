@@ -1,12 +1,10 @@
 # Cesium 3D Tiles
 
-⚠️ **WARNING: This package is currently under active development and is not stable. APIs may change significantly between versions. Use at your own risk.** ⚠️
-
 A Dart package for working with 3D Tiles geospatial data.
 
 3D Tiles is an open specification for a data format for streaming and rendering 3D geospatial content, published by the [Open Geospatial Consortium (OGC)](https://www.ogc.org/standard/3dtiles/) and used by Cesium, Google and others.
 
-This Dart package is an (unofficial) wrapper around the Cesium Native library, exposing Dart bindings for a small part of the Cesium Native API, and also some higher level Dart components to make it easier to work with Cesium 3D Tiles.
+This Dart package is an unofficial wrapper around the Cesium Native library, exposing Dart bindings for a small part of the Cesium Native API, and also some higher level Dart components to make it easier to work with Cesium 3D Tiles.
 
 Cesium Native is a set of C++ libraries for 3D geospatial applications that provides:
 
@@ -15,6 +13,28 @@ Cesium Native is a set of C++ libraries for 3D geospatial applications that prov
 - High-precision 3D geospatial math types and functions, including support for global-scale WGS84 ellipsoids
 
 It serves as the foundational layer for any 3D geospatial software, especially those that want to stream 3D Tiles. Cesium Native powers Cesium's runtime integrations for various platforms including Unreal, Unity - and now Dart/Flutter 🎉
+
+## Quickstart (Flutter)
+
+This Dart package alone does not actually render any content to the screen. It is completely agnostic to your choice of renderer: camera parameters go in, and a list of renderable tiles comes out. This allows you to integrate your own renderer to actually visualize that content on screen.
+
+However, we have included an example Flutter application that uses the [Thermion](https://github.com/nmfisher/thermion) package for 3D rendering.
+
+The app uses your access token to connect to Cesium Ion, retrieves the Google Photorealistic 3D Tiles tileset, and renders the output to your device. To get started:
+
+- create an account at https://ion.cesium.com and login 
+- click on Access Tokens->Create Token and create a token with assets:read permission, and copy the generated token
+- click on Asset Depot and search for "Google Photorealistic 3D Tiles", then click "Add to my assets" (if this has already been added, you ignore this step)
+- from the command line:
+
+```
+flutter channel master
+flutter upgrade
+flutter config --enable-native-assets
+flutter run -d macos --dart-define accessToken=YOUR_CESIUM_ION_ACCESS_TOKEN
+```
+
+where YOUR_CESIUM_ION_ACCESS_TOKEN is the token you created above.
 
 ## Overview
 
@@ -62,8 +82,6 @@ The `cesium_native` part of this package lets you work directly (via Dart) with 
 However, most users should work directly with the [Cesium3DTileset] provided by the `cesium_3d_tiles` library. This exposes a simpler API surface for working with tilesets (including common associated requirements, like assigning visibility layers for working with multiple tilesets, and interfaces for adding marker object overlays to tilesets).
 
 ### Rendering
-
-It's also important to note that this package *does not provide any actual rendering capabiility*. The `cesium_native` library doesn't interact directly with a rendering surface - camera parameters go in, and a list of renderable tiles comes out.
 
 The `cesium_3d_tiles` library includes the `TilesetManager` interface, which describes a set of methods that you could use to render a multiple `Cesium3DTileset` instances to a rendering surface. The library also provides an example implementation of `QueuingTilesetManager` that uses a queue to manage/kick tiles, using `cesium_native` to load a tileset and manage tile content. Note that this requires you to implement the `TilesetRenderer` interface to provide an actual implementation of the rendering logic.
 
