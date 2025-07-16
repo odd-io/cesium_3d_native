@@ -269,6 +269,17 @@ class CesiumNative {
   }
 
   ///
+  /// Update the tileset with the current view. Returns the number of tiles to render.
+  ///
+  Future<List<CesiumTile>> getTilesFadingOut(CesiumTileset tileset) async {
+    var count = g.CesiumTileset_getNumTilesFadingOutThisFrame(tileset._ptr);
+    var tiles = Int64List(count);
+    g.CesiumTileset_getTileFadingOutThisFrame(
+        tileset._ptr, tiles.address.cast());
+    return tiles.map((ptr) => Pointer<g.CesiumTile>.fromAddress(ptr)).toList();
+  }
+
+  ///
   ///
   ///
   CartographicPosition getCartographicPosition(CesiumView cesiumView) {

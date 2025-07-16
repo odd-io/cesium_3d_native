@@ -415,6 +415,20 @@ CesiumTile* CesiumTileset_getTileToRenderThisFrame(CesiumTileset* tileset, int i
     return (CesiumTile*)tileset->lastUpdateResult.tilesToRenderThisFrame[index];
 }
 
+int CesiumTileset_getNumTilesFadingOutThisFrame(CesiumTileset* tileset) {
+    return tileset->lastUpdateResult.tilesFadingOut.size();
+}
+
+void CesiumTileset_getTileFadingOutThisFrame(CesiumTileset *tileset, CesiumTile **out) {
+    auto &tiles = tileset->lastUpdateResult.tilesFadingOut;
+    int i = 0;
+
+    for(const auto *tile : tiles) {
+        out[i] = (CesiumTile*)tile;
+        i++;
+    }
+}
+
 int CesiumTileset_getTileCount(CesiumTileset* tileset) {
     if (!tileset) return 0;
     return static_cast<int>(tileset->lastUpdateResult.tilesToRenderThisFrame.size());

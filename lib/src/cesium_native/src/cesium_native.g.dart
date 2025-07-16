@@ -124,6 +124,19 @@ external ffi.Pointer<CesiumTile> CesiumTileset_getTileToRenderThisFrame(
   int index,
 );
 
+@ffi.Native<ffi.Int Function(ffi.Pointer<CesiumTileset>)>()
+external int CesiumTileset_getNumTilesFadingOutThisFrame(
+  ffi.Pointer<CesiumTileset> tileset,
+);
+
+@ffi.Native<
+    ffi.Void Function(
+        ffi.Pointer<CesiumTileset>, ffi.Pointer<ffi.Pointer<CesiumTile>>)>(isLeaf: true)
+external void CesiumTileset_getTileFadingOutThisFrame(
+  ffi.Pointer<CesiumTileset> tileset,
+  ffi.Pointer<ffi.Pointer<CesiumTile>> out,
+);
+
 @ffi.Native<
     ffi.Void Function(ffi.Pointer<CesiumTileset>, ffi.Int,
         ffi.Pointer<ffi.Pointer<ffi.Void>>)>()

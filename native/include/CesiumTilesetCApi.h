@@ -211,6 +211,12 @@ API_EXPORT int32_t CesiumTileset_getTilesKicked(CesiumTileset* tileset);
 // Returns the tile to render at this frame at the given index. Returns NULL if index is out-of-bounds.
 API_EXPORT CesiumTile* CesiumTileset_getTileToRenderThisFrame(CesiumTileset* tileset, int index);
 
+// Returns the number of tiles fading out.
+API_EXPORT int CesiumTileset_getNumTilesFadingOutThisFrame(CesiumTileset* tileset);
+
+// Populates [out] with the tiles fading out this frame. [out] should be large enough to hold the result of [CesiumTileset_getNumTilesFadingOutThisFrame].
+API_EXPORT void CesiumTileset_getTileFadingOutThisFrame(CesiumTileset *tileset, CesiumTile **out);
+
 // Get the render data for a specific tile
 API_EXPORT void CesiumTileset_getTileRenderData(CesiumTileset* tileset, int index, void** renderData);
 

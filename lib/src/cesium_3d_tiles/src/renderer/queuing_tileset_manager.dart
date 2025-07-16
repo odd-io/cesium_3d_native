@@ -7,6 +7,7 @@ import 'package:cesium_3d_tiles/src/cesium_3d_tiles/src/renderer/markers.dart';
 import 'package:cesium_3d_tiles/src/cesium_3d_tiles/src/renderer/tileset_manager.dart';
 import 'package:cesium_3d_tiles/src/cesium_3d_tiles/src/renderer/tileset_renderer.dart';
 import 'package:cesium_3d_tiles/src/cesium_native/src/cesium_native.dart';
+import 'package:logging/logging.dart';
 import 'package:vector_math/vector_math_64.dart';
 
 import '../cesium_3d_tile.dart';
@@ -28,20 +29,15 @@ import '../cesium_3d_tile.dart';
 /// using your own chosen rendering framework.
 ///
 class QueueingTilesetManager<T> extends TilesetManager {
-  final _loading = <Cesium3DTile>{};
-  final _loaded = <Cesium3DTile>{};
-  final _loadQueue = <Cesium3DTile>{};
-  final _cullQueue = <Cesium3DTile>{};
-  final _renderable = <Cesium3DTileset, Set<Cesium3DTile>>{};
+  late final _logger = Logger(this.runtimeType.toString());
 
-  bool _updating = false;
+  final _renderable = <Cesium3DTileset, Set<Cesium3DTile>>{};
 
   ///
   ///
   ///
   final Map<T, RenderableMarker> _markers = {};
 
-  bool _handlingQueue = false;
   bool _cameraDirty = false;
 
   Timer? _timer;
@@ -58,20 +54,13 @@ class QueueingTilesetManager<T> extends TilesetManager {
   /// This constructor initializes a periodic timer that updates the renderer
   /// and processes the load queue every 8 milliseconds.
   QueueingTilesetManager(this.renderer) {
-    _timer = Timer.periodic(const Duration(milliseconds: 8), _tick);
+    _timer = Timer(Duration(milliseconds: 16), _tick);
   }
 
   ///
   ///
   ///
-  Future _tick(_) async {
-    // skip all updates if we haven't finished the last iteration
-    if (_handlingQueue) {
-      return;
-    }
-
-    _handlingQueue = true;
-
+  void _tick() async {
     for (final layer in _layersToRemove) {
       for (final tile in _renderable[layer]!) {
         final entity = _entities[tile];
@@ -99,35 +88,20 @@ class QueueingTilesetManager<T> extends TilesetManager {
       _cameraDirty = false;
     }
 
-    while (_loadQueue.isNotEmpty) {
-      var item = _loadQueue.first;
-      await _load(item);
-      _loadQueue.remove(item);
-    }
-
-    while (_cullQueue.isNotEmpty) {
-      var tile = _cullQueue.first;
-      await _remove(tile);
-      _cullQueue.remove(tile);
-    }
-    _handlingQueue = false;
+    _timer = Timer(Duration(milliseconds: 8), _tick);
   }
 
   ///
   ///
   ///
   Future _remove(Cesium3DTile tile) async {
-    if (_loaded.contains(tile)) {
-      final entity = _entities[tile];
-      if (entity != null) {
-        await renderer.removeEntity(entity);
-      }
-
-      _entities.remove(tile);
-
-      _loaded.remove(tile);
-      // tile.freeGltf();
+    final entity = _entities[tile];
+    if (entity != null) {
+      await renderer.removeEntity(entity);
     }
+
+    _entities.remove(tile);
+    // tile.freeGltf();
   }
 
   ///
@@ -142,17 +116,15 @@ class QueueingTilesetManager<T> extends TilesetManager {
   ///
   ///
   Future _load(Cesium3DTile tile) async {
-    if (_loaded.contains(tile) || _loading.contains(tile)) {
+    if (_entities.containsKey(tile)) {
+      await _reveal(tile);
       return;
     }
-    if (_entities.containsKey(tile)) {
-      throw Exception("FATAL");
-    }
-    _loading.add(tile);
 
     final data = await tile.loadGltf();
 
     if (data == null) {
+      _logger.warning("Tile is empty");
       return;
     }
     var transform = tile.getTransform();
@@ -163,11 +135,7 @@ class QueueingTilesetManager<T> extends TilesetManager {
 
     _entities[tile] = entity;
 
-    _loaded.add(tile);
-
     await _reveal(tile);
-
-    _loading.remove(tile);
   }
 
   /// Adds a new [Cesium3DTileset] to the renderer.
@@ -251,6 +219,9 @@ class QueueingTilesetManager<T> extends TilesetManager {
     // this is fine, just ignore it if not
     if (entity != null) {
       await renderer.setEntityVisibility(entity, false);
+    } else {
+      _logger.warning(
+          "Tile not found, this may not necessarily be loaded yet. You shouldn't see this regularly.");
     }
   }
 
@@ -271,12 +242,6 @@ class QueueingTilesetManager<T> extends TilesetManager {
   ///
   ///
   Future _update() async {
-    if (_updating) {
-      return;
-    }
-
-    _updating = true;
-
     var viewport = await renderer.viewportDimensions;
 
     final layers = _layers.keys.toList();
@@ -294,33 +259,36 @@ class QueueingTilesetManager<T> extends TilesetManager {
     final verticalFov = await renderer.verticalFovInRadians;
 
     for (final layer in layers) {
-      var renderable = (await layer.updateCameraAndViewport(
-              cameraPosition,
-              up,
-              forward,
-              horizontalFov,
-              verticalFov,
-              viewport.width.toDouble(),
-              viewport.height.toDouble()))
-          .toSet();
+      var updateResult = (await layer.updateCameraAndViewport(
+          cameraPosition,
+          up,
+          forward,
+          horizontalFov,
+          verticalFov,
+          viewport.width.toDouble(),
+          viewport.height.toDouble()));
 
-      // if any tiles are no longer renderable, we can remove them straight away
-      var disjunction = renderable.difference(_renderable[layer]!);
-      for (var tile in disjunction) {
-        _cullQueue.add(tile);
+      final tilesToRenderThisFrame =
+          updateResult.tilesToRenderThisFrame.toSet();
+
+      final tilesFadingOut = updateResult.tilesFadingOut.toSet();
+
+      for (final tile in _renderable[layer]!) {
+        if (tilesToRenderThisFrame.contains(tile) ||
+            tilesFadingOut.contains(tile)) {
+          await _reveal(tile);
+        } else {
+          await _hide(tile);
+        }
       }
-      _renderable[layer]!.clear();
 
-      _renderable[layer]!.addAll(renderable);
+      _renderable[layer]!.addAll(tilesToRenderThisFrame);
 
       // iterate over every renderable tile to determine its state
-      for (var tile in _renderable[layer]!) {
+      for (var tile in tilesToRenderThisFrame) {
         switch (tile.state) {
           case CesiumTileSelectionState.Rendered:
-            if (!_loaded.contains(tile)) {
-              _loadQueue.add(tile);
-            }
-            await _reveal(tile);
+            await _load(tile);
 
             // we want markers (all placed at height 0)
             // to be rendered above the terrain, but we currently have no
@@ -348,26 +316,18 @@ class QueueingTilesetManager<T> extends TilesetManager {
                 );
               }
             }
+            break;
 
           case CesiumTileSelectionState.Refined:
-            _loadQueue.remove(tile);
-            if (_loaded.contains(tile)) {
-              _cullQueue.add(tile);
-            }
+            await _hide(tile);
           case CesiumTileSelectionState.Culled:
-            _loadQueue.remove(tile);
-            if (_loaded.contains(tile)) {
-              _cullQueue.add(tile);
-            }
+            await _hide(tile);
           case CesiumTileSelectionState.None:
-            _loadQueue.remove(tile);
-            if (_loaded.contains(tile)) {
-              _cullQueue.add(tile);
-            }
+            await _hide(tile);
           case CesiumTileSelectionState.RenderedAndKicked:
-            _loadQueue.remove(tile);
+            await _hide(tile);
           case CesiumTileSelectionState.RefinedAndKicked:
-            _loadQueue.remove(tile);
+            await _hide(tile);
         }
       }
 
@@ -410,8 +370,6 @@ class QueueingTilesetManager<T> extends TilesetManager {
         }
       }
     }
-
-    _updating = false;
   }
 
   @override

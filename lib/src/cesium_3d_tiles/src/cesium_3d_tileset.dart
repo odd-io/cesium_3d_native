@@ -31,6 +31,11 @@ enum RenderLayer {
   layer4,
 }
 
+typedef UpdateResult = ({
+  List<Cesium3DTile> tilesToRenderThisFrame,
+  List<Cesium3DTile> tilesFadingOut
+});
+
 ///
 /// A high-level interface for a Cesium 3D Tiles tileset.
 ///
@@ -45,6 +50,7 @@ class Cesium3DTileset {
   ///
   /// A handle to the native CesiumTileset managed by this instance.
   final CesiumTileset _tileset;
+  CesiumTileset get tileset => _tileset;
 
   /// Markers are always at render layer 0, this should be between 1 and 6 (inclusive).
   final RenderLayer renderLayer;
@@ -190,7 +196,7 @@ class Cesium3DTileset {
   ///
   ///
   ///
-  Future<List<Cesium3DTile>> updateCameraAndViewport(
+  Future<UpdateResult> updateCameraAndViewport(
       Vector3 cameraPosition,
       Vector3 upVector,
       Vector3 forwardVector,
@@ -216,20 +222,29 @@ class Cesium3DTileset {
 
     var renderableTileCount =
         await CesiumNative.instance.updateTilesetView(_tileset, _view);
+
     var elapsed =
         DateTime.now().millisecondsSinceEpoch - start.millisecondsSinceEpoch;
     start = DateTime.now();
     var tiles = <Cesium3DTile>[];
     if (_rootTile != null && renderableTileCount > 0) {
-      final renderableTiles =
-          CesiumNative.instance.getRenderableTiles(_rootTile!);
-      for (final tile in renderableTiles) {
+      // final renderableTiles =
+      //     CesiumNative.instance.getRenderableTiles(_rootTile!);
+      // for (final tile in renderableTiles) {
+      for (int i = 0; i < renderableTileCount; i++) {
+        final tile =
+            CesiumNative.instance.getTileToRenderThisFrame(_tileset, i);
         var tileSelectionState =
             CesiumNative.instance.getSelectionState(_tileset, tile);
-        tiles.add(Cesium3DTile(tile, tileSelectionState, this));
+        tiles.add(Cesium3DTile(tile, this));
       }
     }
-    return tiles;
+
+    final fadingOutPtrs =
+        await CesiumNative.instance.getTilesFadingOut(_tileset);
+    final fadingOut = fadingOutPtrs.map((ptr) => Cesium3DTile(ptr, this)).toList();
+
+    return (tilesToRenderThisFrame:tiles, tilesFadingOut:fadingOut);
   }
 
   final _models = <CesiumTile, SerializedCesiumGltfModel>{};

@@ -10,3 +10,4 @@ functions:
   leaf:
     include:
       - 'CesiumGltfModel_applyRtcCenter'
+      - 'CesiumTileset_getTileFadingOutThisFrame'
