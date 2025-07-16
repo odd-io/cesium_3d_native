@@ -31,6 +31,8 @@ The app uses your access token to connect to Cesium Ion, retrieves the Google Ph
 flutter channel master
 flutter upgrade
 flutter config --enable-native-assets
+cd example/flutter
+flutter pub get
 flutter run -d macos --dart-define accessToken=YOUR_CESIUM_ION_ACCESS_TOKEN
 ```
 
