@@ -56,7 +56,7 @@ class QueueingTilesetManager<T> extends TilesetManager {
   /// Creates a new instance of BaseTilesetRenderer.
   ///
   /// This constructor initializes a periodic timer that updates the renderer
-  /// and processes the load queue every 16 milliseconds.
+  /// and processes the load queue every 8 milliseconds.
   QueueingTilesetManager(this.renderer) {
     _timer = Timer.periodic(const Duration(milliseconds: 8), _tick);
   }
