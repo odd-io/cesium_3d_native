@@ -228,14 +228,9 @@ class Cesium3DTileset {
     start = DateTime.now();
     var tiles = <Cesium3DTile>[];
     if (_rootTile != null && renderableTileCount > 0) {
-      // final renderableTiles =
-      //     CesiumNative.instance.getRenderableTiles(_rootTile!);
-      // for (final tile in renderableTiles) {
       for (int i = 0; i < renderableTileCount; i++) {
         final tile =
             CesiumNative.instance.getTileToRenderThisFrame(_tileset, i);
-        var tileSelectionState =
-            CesiumNative.instance.getSelectionState(_tileset, tile);
         tiles.add(Cesium3DTile(tile, this));
       }
     }
