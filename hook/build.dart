@@ -77,13 +77,7 @@ void main(List<String> args) async {
           includes.map((i) => "/I${packageRoot.toFilePath()}/$i"));
       flags.addAll(["/DWIN32=1", "/D_DLL=1", "/DRELEASE"]);
       flags.addAll(sources);
-      flags.addAll([
-        '/link',
-        "/LIBPATH:${libDir.path}", // Cesium libs
-        "/LIBPATH:${sqliteDir.path}", // SQLite libs
-        "sqlite3.lib",
-        "/DLL"
-      ]);
+
       sources.clear();
       includes.clear();
     } else {
@@ -136,7 +130,7 @@ void main(List<String> args) async {
       sources: sources,
       includes: includes,
       flags: flags,
-      dartBuildFiles: ['hook/build.dart'],
+      libraryDirectories:[libDir.path, sqliteDir.path]
     );
 
     await cbuilder.run(
