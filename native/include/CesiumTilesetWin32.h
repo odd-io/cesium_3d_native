@@ -6,6 +6,7 @@
 #define API_EXPORT __declspec(dllexport)
 #endif
 
+#pragma comment(lib, "sqlite3.lib")
 #pragma comment(lib, "user32.lib")
 #pragma comment(lib, "Cesium3DTiles.lib")
 #pragma comment(lib, "Cesium3DTilesContent.lib")
