@@ -40,7 +40,9 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
+
   ExampleViewModel? viewModel;
+  String? error;
 
   @override
   void initState() {
@@ -53,6 +55,15 @@ class _MyHomePageState extends State<MyHomePage> {
       await viewModel.moveCameraToPosition(51.507889, -0.087837, heightAboveTarget: 100.0);
 
       setState(() {});
+    }).onError((err, st) {
+      if(err is AccessTokenException) {
+        error = "Cesium Ion accessToken not set. Make sure you have followed the instructions in README.md in the root repository, and that you are running with flutter run --dart-define accessToken=YOUR_CESIUM_ION_ACCESS_TOKEN";
+      } else { 
+        error = err.toString();
+      }
+      setState(() {
+        
+      });
     });
   }
 
@@ -65,7 +76,7 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: viewModel == null
+      body: error != null ? Center(child:SizedBox(width:500, child:Text(error!))) : viewModel == null
           ? const Center(child: CircularProgressIndicator())
           : Stack(
               children: [

@@ -9,6 +9,10 @@ import 'package:vector_math/vector_math_64.dart';
 
 const ionAccessToken = String.fromEnvironment("accessToken");
 
+class AccessTokenException {
+
+}
+
 class ExampleViewModel {
   late ThermionViewer _viewer;
   ThermionViewer get viewer => _viewer;
@@ -51,7 +55,7 @@ class ExampleViewModel {
   ///
   static Future<ExampleViewModel> create() async {
     if (ionAccessToken.isEmpty) {
-      throw Exception("You must set the accessToken");
+      throw AccessTokenException();
     }
 
     final viewer = await ThermionFlutterPlugin.createViewer();
