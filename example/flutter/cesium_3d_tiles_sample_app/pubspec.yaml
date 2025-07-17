@@ -9,12 +9,11 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  thermion_flutter: ^0.3.2
-  thermion_dart: ^0.3.2
+  thermion_flutter: ^0.3.3-pre
   cupertino_icons: ^1.0.8
   logging: ^1.3.0
   cesium_3d_tiles:
-    path: ../../../
+    path: ../../../  
 
 dev_dependencies:
   flutter_test:
