@@ -1,16 +1,18 @@
-# cesium_3d_tiles_sample_app
+This demo app uses your access token to connect to Cesium Ion, retrieves the Google Photorealistic 3D Tiles tileset, and renders the output to your device. To get started:
 
-A new Flutter project.
+- create an account at https://ion.cesium.com and login
+- click on Access Tokens->Create Token and create a token with assets:read permission, and copy the generated token
+- click on Asset Depot and search for "Google Photorealistic 3D Tiles", then click "Add to my assets" (if this has already been added, you ignore this step)
 
-## Getting Started
+From the command line:
+```
+flutter channel master
+flutter upgrade
+flutter config --enable-native-assets
+cd example/flutter
+flutter pub get
+flutter run -d macos --dart-define accessToken=YOUR_CESIUM_ION_ACCESS_TOKEN
+```
 
-This project is a starting point for a Flutter application.
+where YOUR_CESIUM_ION_ACCESS_TOKEN is the token you created above.
 
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
