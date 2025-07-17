@@ -18,7 +18,7 @@ It serves as the foundational layer for any 3D geospatial software, especially t
 
 This Dart package alone does not actually render any content to the screen. It is completely agnostic to your choice of renderer: camera parameters go in, and a list of renderable tiles comes out. This allows you to integrate your own renderer to actually visualize that content on screen.
 
-However, we have included an example Flutter application that uses the [Thermion](https://github.com/nmfisher/thermion) package for 3D rendering.
+However, we have included an [example Flutter application](example/flutter/cesium_3d_tiles_sample_app) that uses the [Thermion](https://github.com/nmfisher/thermion) package for 3D rendering.
 
 The app uses your access token to connect to Cesium Ion, retrieves the Google Photorealistic 3D Tiles tileset, and renders the output to your device. To get started:
 
